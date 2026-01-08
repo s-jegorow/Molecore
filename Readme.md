@@ -1,6 +1,6 @@
 # Nx
 
-A block editor built with TypeScript, EditorJS and FastAPI.
+A purified block editor built with TypeScript, EditorJS and FastAPI without annoying features.
 
 ## Features (Planned)
 
