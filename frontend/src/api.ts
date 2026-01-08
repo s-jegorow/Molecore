@@ -1,6 +1,6 @@
 import type { Page, PageCreate, PageUpdate } from './types'
 
-const API_URL = 'http://localhost:8000'
+const API_URL = 'http://127.0.0.1:8000'
 
 // Alle Pages laden
 export async function getPages(): Promise<Page[]> {

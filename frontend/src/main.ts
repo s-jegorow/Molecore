@@ -4,22 +4,28 @@ import Header from '@editorjs/header'
 import List from '@editorjs/list'
 import Code from '@editorjs/code'
 import Table from '@editorjs/table'
+import DragDrop from 'editorjs-drag-drop'
 import { getPage, updatePage } from './api'
 
 const CURRENT_PAGE_ID = 1
 
 const editor = new EditorJS({
   holder: 'editor',
-  
+
   tools: {
     header: Header as any,
     list: List as any,
     code: Code as any,
     table: Table as any
   },
-  
+
   placeholder: 'Type / for commands...',
-  autofocus: true
+  autofocus: true,
+
+  // Drag & Drop aktivieren
+  onReady: () => {
+    new DragDrop(editor)
+  }
 })
 
 async function loadPage() {
