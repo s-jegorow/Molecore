@@ -1,0 +1,26 @@
+# Nx
+
+A block editor built with TypeScript, EditorJS and FastAPI.
+
+## Features (Planned)
+
+- Block-based editor with drag & drop
+- Rich content: Text, Code, Images, Tables
+- Hierarchical pages (pages within pages)
+- Multi-user support (isolated workspaces)
+- No collaboration features (single-user workspaces)
+
+## Tech Stack
+
+**Frontend:**
+- TypeScript
+- Vite
+- EditorJS
+
+**Backend:**
+- Python 3.12+
+- FastAPI
+- SQLAlchemy
+- SQLite (dev) / PostgreSQL (production)
+
+## Project Structure
