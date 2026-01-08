@@ -3,18 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nx</title>
+    <title>Nx°</title>
   </head>
-  <body>
-    <div id="app">
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h2>Nx°</h2>
+      </div>
+      <div id="pages-list"></div>
+      <button id="new-page-btn">+ New Page</button>
+    </aside>
+    
+    <div id="content">
       <header>
-        <h1>nx</h1>
+        <input type="text" id="page-title" value="Untitled" placeholder="Untitled">
         <button id="save-btn">Save</button>
       </header>
       <main>
         <div id="editor"></div>
       </main>
     </div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>
