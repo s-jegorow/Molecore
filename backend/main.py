@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
+import os
+import time
+import secrets
+from pathlib import Path
 
 from database import engine, get_db, Base
 from models import User, Page
@@ -21,6 +26,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Static files für uploads
+UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+
 # Pydantic Schemas für Request/Response
 from pydantic import BaseModel
 
@@ -28,17 +38,24 @@ class PageCreate(BaseModel):
     title: str
     content: dict
     parent_id: Optional[int] = None
+    is_favorite: Optional[bool] = False
+    order: Optional[int] = 0
 
 class PageUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[dict] = None
     parent_id: Optional[int] = None
+    is_favorite: Optional[bool] = None
+    order: Optional[int] = None
 
 class PageResponse(BaseModel):
     id: int
     title: str
     content: dict
     parent_id: Optional[int]
+    is_favorite: bool
+    is_home: bool
+    order: int
     user_id: int
     created_at: str
     updated_at: str
@@ -61,7 +78,9 @@ def health_check():
 @app.get("/api/pages", response_model=List[PageResponse])
 def get_pages(db: Session = Depends(get_db)):
     """Alle Pages des Demo-Users laden"""
-    pages = db.query(Page).filter(Page.user_id == DEMO_USER_ID).all()
+    pages = db.query(Page).filter(
+        Page.user_id == DEMO_USER_ID
+    ).order_by(Page.order).all()
 
     # Content von JSON-String zu dict konvertieren & datetime zu string
     for page in pages:
@@ -98,6 +117,8 @@ def create_page(page_data: PageCreate, db: Session = Depends(get_db)):
         title=page_data.title,
         content=json.dumps(page_data.content),
         parent_id=page_data.parent_id,
+        is_favorite=page_data.is_favorite,
+        order=page_data.order,
         user_id=DEMO_USER_ID
     )
 
@@ -130,6 +151,10 @@ def update_page(page_id: int, page_data: PageUpdate, db: Session = Depends(get_d
         page.content = json.dumps(page_data.content)
     if page_data.parent_id is not None:
         page.parent_id = page_data.parent_id
+    if page_data.is_favorite is not None:
+        page.is_favorite = page_data.is_favorite
+    if page_data.order is not None:
+        page.order = page_data.order
 
     db.commit()
     db.refresh(page)
@@ -152,7 +177,39 @@ def delete_page(page_id: int, db: Session = Depends(get_db)):
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
+    # Home Page kann nicht gelöscht werden
+    if page.is_home:
+        raise HTTPException(status_code=400, detail="Cannot delete home page")
+
     db.delete(page)
     db.commit()
 
     return {"message": "Page deleted successfully"}
+
+@app.post("/api/upload")
+async def upload_file(image: UploadFile = File(...)):
+    """Bild hochladen"""
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    if image.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only image files are allowed")
+
+    # Generate filename: image_{timestamp}_{random}_{original}
+    timestamp = int(time.time())
+    random_str = secrets.token_hex(6)
+    safe_filename = image.filename.replace(" ", "_") if image.filename else "upload"
+    new_filename = f"image_{timestamp}_{random_str}_{safe_filename}"
+
+    # Save file
+    file_path = UPLOAD_DIR / new_filename
+    with open(file_path, "wb") as buffer:
+        content = await image.read()
+        buffer.write(content)
+
+    # Return URL for frontend
+    return {
+        "success": 1,
+        "file": {
+            "url": f"http://127.0.0.1:8000/uploads/{new_filename}"
+        }
+    }

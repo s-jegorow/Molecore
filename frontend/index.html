@@ -9,17 +9,36 @@
   <div id="app">
     <aside id="sidebar">
       <div class="sidebar-header">
-        <h2>Nx°</h2>
+        <h2 class="logo" style="cursor: pointer;">Nx°</h2>
+   </div>
+
+     <div id="search-container">
+       <input type="text" id="search-input" placeholder="🔍 Search pages...">
+       <div id="search-results"></div>
+     </div>
+
+      <div id="favorites-section">
+        <div class="section-label">Favorites</div>
+        <div id="favorites-list"></div>
       </div>
-      <div id="pages-list"></div>
+      <div id="pages-section">
+        <div class="section-label">Pages</div>
+        <div id="pages-list"></div>
+      </div>
       <button id="new-page-btn">+ New Page</button>
     </aside>
     
     <div id="content">
       <header>
         <input type="text" id="page-title" value="Untitled" placeholder="Untitled">
-        <button id="save-btn">Save</button>
       </header>
+
+      <div id="toolbar">
+        <div id="breadcrumbs"></div>
+        <button id="delete-btn">Delete</button>
+        <button id="darkmode-btn">☾</button>
+        <button id="favorite-btn" class="toolbar-action">☆</button>
+      </div>
       <main>
         <div id="editor"></div>
       </main>
