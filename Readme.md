@@ -21,6 +21,5 @@ A purified block editor built with TypeScript, EditorJS and FastAPI without anno
 - Python 3.12+
 - FastAPI
 - SQLAlchemy
-- SQLite (dev) / PostgreSQL (production)
+- SQLite (Postgres will be used soon)
 
-## Project Structure

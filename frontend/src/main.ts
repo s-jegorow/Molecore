@@ -4,6 +4,10 @@ import Header from '@editorjs/header'
 import List from '@editorjs/list'
 import Code from '@editorjs/code'
 import Table from '@editorjs/table'
+// @ts-ignore
+import * as ToggleBlockModule from 'editorjs-toggle-block'
+// @ts-ignore
+const ToggleBlock = ToggleBlockModule.default || ToggleBlockModule
 import ParagraphWithBlanks from './ParagraphWithBlanks'
 import ResizableImage from './ResizableImage'
 import BackgroundColorTune from './BackgroundColorTune'
@@ -11,14 +15,21 @@ import ColorTool from './ColorTool'
 import HighlightTool from './HighlightTool'
 import UnderlineTool from './UnderlineTool'
 import StrikethroughTool from './StrikethroughTool'
+import LinkTool from './LinkTool'
 import DragDrop from 'editorjs-drag-drop'
 import PageBlock from './PageBlock'
+import AudioBlock from './AudioBlock'
+import FileBlock from './FileBlock'
+import EmbedBlock from './EmbedBlock'
 import { getPage, getPages, updatePage, deletePage } from './api'
 import { initSidebar, setActivePage, loadPages } from './sidebar'
+import { UndoManager } from './UndoManager'
+import { Modal } from './Modal'
 
 let currentPageId: number | null = null
 let editor: EditorJS
 let autoSaveTimeout: number | null = null
+let undoManager: UndoManager
 
 // Editor initialisieren
 function initEditor() {
@@ -28,15 +39,17 @@ function initEditor() {
     tools: {
       paragraph: {
         class: ParagraphWithBlanks,
-        inlineToolbar: true,
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
         tunes: ['backgroundColor']
       },
       header: {
         class: Header as any,
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
         tunes: ['backgroundColor']
       },
       list: {
         class: List as any,
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
         tunes: ['backgroundColor']
       },
       code: {
@@ -47,7 +60,16 @@ function initEditor() {
         class: Table as any,
         tunes: ['backgroundColor']
       },
+      toggle: {
+        class: ToggleBlock as any,
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        tunes: ['backgroundColor']
+      },
       image: ResizableImage as any,
+      audio: AudioBlock as any,
+      file: FileBlock as any,
+      embed: EmbedBlock as any,
+      link: LinkTool as any,
       highlight: HighlightTool as any,
       color: ColorTool as any,
       underline: UnderlineTool as any,
@@ -62,34 +84,53 @@ function initEditor() {
     onReady: () => {
       new DragDrop(editor)
 
-      // Fix popover clipping: relocate popovers to body while preserving position
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach((node) => {
-            if (node instanceof HTMLElement && node.classList.contains('ce-popover')) {
-              // Wait for Editor.js to position it first
-              setTimeout(() => {
-                const rect = node.getBoundingClientRect()
-                node.style.position = 'fixed'
-                node.style.top = rect.top + 'px'
-                node.style.left = rect.left + 'px'
-                document.body.appendChild(node)
-              }, 0)
-            }
-          })
-        })
-      })
+      // Initialize undo manager
+      undoManager = new UndoManager(editor, 5)
+
+      // Capture initial state after a short delay
+      setTimeout(async () => {
+        await undoManager.captureState()
+        updateUndoRedoButtons()
+      }, 500)
+
+      // Global touch event fix for EditorJS popovers
+      document.addEventListener('touchend', (e: TouchEvent) => {
+        const target = e.target as HTMLElement
+
+        // Check if touch is on a popover item
+        const popoverItem = target.closest('.ce-popover__item')
+        if (popoverItem) {
+          e.preventDefault()
+          e.stopPropagation()
+
+          // Trigger click after a tiny delay
+          setTimeout(() => {
+            (popoverItem as HTMLElement).click()
+          }, 50)
+        }
+      }, { passive: false, capture: true })
 
       const editorElement = document.getElementById('editor')
       if (editorElement) {
-        observer.observe(editorElement, {
-          childList: true,
-          subtree: true
+        // Make links clickable
+        editorElement.addEventListener('click', (e: MouseEvent) => {
+          const target = e.target as HTMLElement
+          const link = target.closest('a')
+          if (link && link.href) {
+            e.preventDefault()
+            window.open(link.href, '_blank', 'noopener,noreferrer')
+          }
         })
       }
     },
 
-    onChange: () => {
+    onChange: async () => {
+      // Capture state for undo
+      if (undoManager) {
+        await undoManager.captureState()
+        updateUndoRedoButtons()
+      }
+
       // Debounced auto-save: 2 seconds after last change
       if (autoSaveTimeout) {
         clearTimeout(autoSaveTimeout)
@@ -159,6 +200,13 @@ async function loadPage(pageId: number) {
       await editor.isReady
       await editor.clear()
       await editor.render(page.content)
+
+      // Clear undo history when loading a new page
+      if (undoManager) {
+        undoManager.clear()
+        await undoManager.captureState()
+        updateUndoRedoButtons()
+      }
     }
 
     // Titel aktualisieren
@@ -176,7 +224,10 @@ async function loadPage(pageId: number) {
     await buildBreadcrumbs(pageId)
 
     // Update favorite button state
-    updateFavoriteButton(page.is_favorite)
+    updateFavoriteButton(page.page_type === 'favorite')
+
+    // Update header image
+    updateHeaderImage(page.header)
 
     console.log('Page loaded:', page.title)
   } catch (error) {
@@ -197,6 +248,18 @@ function updateFavoriteButton(isFavorite: boolean) {
   }
 }
 
+function updateHeaderImage(headerPath: string | null | undefined) {
+  const header = document.querySelector('header')
+  if (!header) return
+
+  // Set or remove background image
+  if (headerPath) {
+    (header as HTMLElement).style.backgroundImage = `url('${headerPath}')`
+  } else {
+    (header as HTMLElement).style.backgroundImage = ''
+  }
+}
+
 // Dark mode handler
 const darkmodeBtn = document.getElementById('darkmode-btn')
 let isDarkMode = localStorage.getItem('darkMode') === 'true'
@@ -207,17 +270,103 @@ function toggleDarkMode() {
 
   if (isDarkMode) {
     document.body.classList.add('dark-mode')
+    darkmodeBtn?.classList.add('active')
   } else {
     document.body.classList.remove('dark-mode')
+    darkmodeBtn?.classList.remove('active')
   }
 }
 
 // Apply saved dark mode preference on load
 if (isDarkMode) {
   document.body.classList.add('dark-mode')
+  darkmodeBtn?.classList.add('active')
 }
 
 darkmodeBtn?.addEventListener('click', toggleDarkMode)
+
+// Settings modal handler
+const settingsBtn = document.getElementById('settings-btn')
+const settingsModal = document.getElementById('settings-modal')
+const modalClose = settingsModal?.querySelector('.modal-close')
+const cleanupUploadsBtn = document.getElementById('cleanup-uploads-btn')
+
+settingsBtn?.addEventListener('click', () => {
+  settingsModal?.classList.add('active')
+})
+
+modalClose?.addEventListener('click', () => {
+  settingsModal?.classList.remove('active')
+})
+
+settingsModal?.addEventListener('click', (e) => {
+  if (e.target === settingsModal) {
+    settingsModal.classList.remove('active')
+  }
+})
+
+cleanupUploadsBtn?.addEventListener('click', async () => {
+  if (!confirm('Are you sure you want to clean up unused files? This will permanently delete files that are no longer referenced in any page.')) {
+    return
+  }
+
+  try {
+    const response = await fetch('http://localhost:8000/api/cleanup-uploads', {
+      method: 'POST'
+    })
+
+    if (!response.ok) {
+      throw new Error('Cleanup failed')
+    }
+
+    const result = await response.json()
+    await Modal.success(`Files deleted: ${result.deleted_count}\nSpace freed: ${result.space_freed}`, 'Cleanup Complete')
+  } catch (error) {
+    console.error('Cleanup error:', error)
+    await Modal.error('Failed to clean up files. Please try again.')
+  }
+})
+
+// Header double-click handler - Upload header image
+const headerElement = document.querySelector('header')
+headerElement?.addEventListener('dblclick', (e) => {
+  // Don't trigger if double-clicking on the title input
+  if ((e.target as HTMLElement).id === 'page-title') return
+  if (!currentPageId) return
+
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('upload_type', 'header')
+
+      const response = await fetch('http://127.0.0.1:8000/api/upload', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) throw new Error('Upload failed')
+
+      const data = await response.json()
+      const headerPath = `http://127.0.0.1:8000${data.url}`
+
+      await updatePage(currentPageId, { header: headerPath })
+      updateHeaderImage(headerPath)
+
+      console.log('Header image uploaded')
+    } catch (error) {
+      console.error('Failed to upload header:', error)
+      await Modal.error('Failed to upload header image.')
+    }
+  })
+  input.click()
+})
 
 // Favorite button handler
 const favoriteBtn = document.getElementById('favorite-btn')
@@ -226,15 +375,17 @@ favoriteBtn?.addEventListener('click', async () => {
 
   try {
     const page = await getPage(currentPageId)
-    const newFavoriteState = !page.is_favorite
 
-    await updatePage(currentPageId, { is_favorite: newFavoriteState })
-    updateFavoriteButton(newFavoriteState)
+    // Toggle between 'favorite' and 'normal'
+    const newPageType = page.page_type === 'favorite' ? 'normal' : 'favorite'
+
+    await updatePage(currentPageId, { page_type: newPageType })
+    updateFavoriteButton(newPageType === 'favorite')
 
     // Reload sidebar to move page between sections
     await loadPages(loadPage)
 
-    console.log(`Page ${newFavoriteState ? 'added to' : 'removed from'} favorites`)
+    console.log(`Page ${newPageType === 'favorite' ? 'added to' : 'removed from'} favorites`)
   } catch (error) {
     console.error('Failed to toggle favorite:', error)
   }
@@ -273,7 +424,7 @@ deleteBtn?.addEventListener('click', async () => {
     console.log('Page deleted')
   } catch (error) {
     console.error('Failed to delete page:', error)
-    alert('Delete failed!')
+    await Modal.error('Failed to delete page. Please try again.')
   }
 })
 
@@ -286,11 +437,14 @@ pageTitleInput?.addEventListener('blur', async () => {
 
   try {
     await updatePage(currentPageId, { title: newTitle })
-    // Sidebar aktualisieren
-    const pageItem = document.querySelector(`[data-page-id="${currentPageId}"]`)
-    if (pageItem) {
-      pageItem.textContent = newTitle
-    }
+    // Sidebar aktualisieren - nur das Title-Element, nicht das Icon
+    const pageItems = document.querySelectorAll(`[data-page-id="${currentPageId}"]`)
+    pageItems.forEach(pageItem => {
+      const titleEl = pageItem.querySelector('.page-title')
+      if (titleEl) {
+        titleEl.textContent = newTitle
+      }
+    })
   } catch (error) {
     console.error('Failed to update title:', error)
   }
@@ -337,7 +491,7 @@ async function init() {
   // Load home page by default
   try {
     const allPages = await getPages()
-    const homePage = allPages.find(p => p.is_home)
+    const homePage = allPages.find(p => p.page_type === 'home')
     if (homePage) {
       await loadPage(homePage.id)
     }
@@ -352,12 +506,57 @@ logoElement?.addEventListener('click', async (e) => {
   e.preventDefault()
   try {
     const allPages = await getPages()
-    const homePage = allPages.find(p => p.is_home)
+    const homePage = allPages.find(p => p.page_type === 'home')
     if (homePage) {
       await loadPage(homePage.id)
     }
   } catch (error) {
     console.error('Failed to load home page:', error)
+  }
+})
+
+// Undo/Redo buttons
+const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement
+const redoBtn = document.getElementById('redo-btn') as HTMLButtonElement
+
+function updateUndoRedoButtons() {
+  if (!undoManager) return
+
+  if (undoBtn) {
+    undoBtn.disabled = !undoManager.canUndo()
+  }
+  if (redoBtn) {
+    redoBtn.disabled = !undoManager.canRedo()
+  }
+}
+
+undoBtn?.addEventListener('click', async () => {
+  if (!undoManager) return
+  await undoManager.undo()
+  updateUndoRedoButtons()
+})
+
+redoBtn?.addEventListener('click', async () => {
+  if (!undoManager) return
+  await undoManager.redo()
+  updateUndoRedoButtons()
+})
+
+// Keyboard shortcuts
+document.addEventListener('keydown', async (e) => {
+  if (!undoManager) return
+
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const modKey = isMac ? e.metaKey : e.ctrlKey
+
+  if (modKey && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    await undoManager.undo()
+    updateUndoRedoButtons()
+  } else if (modKey && e.key === 'z' && e.shiftKey) {
+    e.preventDefault()
+    await undoManager.redo()
+    updateUndoRedoButtons()
   }
 })
 

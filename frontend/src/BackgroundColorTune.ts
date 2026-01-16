@@ -49,11 +49,30 @@ export default class BackgroundColorTune {
         button.style.boxShadow = '0 0 0 2px rgba(33, 150, 243, 0.3)'
       }
 
-      button.addEventListener('click', () => {
+      const handleClick = (e: Event) => {
         this.data.backgroundColor = color.value
         this.applyBackgroundColor()
-        this.api.blocks.update()
-      })
+
+        // Update button states
+        if (this.wrapper) {
+          this.wrapper.querySelectorAll('.background-color-option').forEach(btn => {
+            const btnElement = btn as HTMLElement
+            btnElement.style.transform = ''
+            btnElement.style.boxShadow = ''
+          })
+          button.style.transform = 'scale(1.15)'
+          button.style.boxShadow = '0 0 0 2px rgba(33, 150, 243, 0.3)'
+        }
+
+        // Force save
+        try {
+          this.block.dispatchChange()
+        } catch (err) {
+          console.log('dispatchChange failed:', err)
+        }
+      }
+
+      button.addEventListener('pointerdown', handleClick, true)
 
       this.wrapper.appendChild(button)
     })

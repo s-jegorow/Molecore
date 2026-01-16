@@ -1,5 +1,6 @@
 import type { API, BlockTool, BlockToolConstructorOptions } from '@editorjs/editorjs'
-import { createPage } from './api'
+import { createPage, getPages } from './api'
+import { showIconPicker } from './iconPicker'
 
 export default class PageBlock implements BlockTool {
   private api: API
@@ -60,14 +61,36 @@ export default class PageBlock implements BlockTool {
     `
   }
 
-  renderExistingPage() {
+  async renderExistingPage() {
     if (!this.wrapper) return
 
     this.wrapper.style.cursor = 'pointer'
 
-    const icon = document.createElement('span')
-    icon.textContent = '📄'
-    icon.style.fontSize = '20px'
+    // Fetch current page data to get icon
+    let pageIcon = '📄'
+    try {
+      const pages = await getPages()
+      const currentPage = pages.find(p => p.id === this.data.pageId)
+      if (currentPage?.icon) {
+        pageIcon = currentPage.icon
+      }
+    } catch (error) {
+      console.error('Failed to fetch page icon:', error)
+    }
+
+    const iconEl = document.createElement('span')
+    iconEl.className = 'page-block-icon'
+    iconEl.style.cssText = 'font-size: 20px; cursor: pointer; display: inline-flex; align-items: center; margin-right: 2px;'
+
+    // Check if icon is URL or emoji
+    if (pageIcon.startsWith('http')) {
+      const img = document.createElement('img')
+      img.src = pageIcon
+      img.style.cssText = 'width: 20px; height: 20px; object-fit: cover; border-radius: 2px;'
+      iconEl.appendChild(img)
+    } else {
+      iconEl.textContent = pageIcon
+    }
 
     const title = document.createElement('span')
     title.textContent = this.data.pageTitle || 'Untitled'
@@ -76,15 +99,26 @@ export default class PageBlock implements BlockTool {
     title.style.fontSize = '15px'
 
     this.wrapper.innerHTML = ''
-    this.wrapper.appendChild(icon)
+    this.wrapper.appendChild(iconEl)
     this.wrapper.appendChild(title)
+
+    // Icon double-click - show picker
+    iconEl.addEventListener('dblclick', async (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+      if (this.data.pageId) {
+        showIconPicker(this.data.pageId, iconEl, () => {
+          // Trigger sidebar reload
+          window.dispatchEvent(new CustomEvent('iconUpdated'))
+        })
+      }
+    })
 
     this.wrapper.onmouseenter = () => {
       if (this.wrapper && title) {
         const isDarkMode = document.body.classList.contains('dark-mode')
         this.wrapper.style.background = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'
         title.style.color = isDarkMode ? '#e0e0e0' : '#000'
-        title.style.textDecoration = 'underline'
       }
     }
     this.wrapper.onmouseleave = () => {
@@ -92,13 +126,13 @@ export default class PageBlock implements BlockTool {
         const isDarkMode = document.body.classList.contains('dark-mode')
         this.wrapper.style.background = 'transparent'
         title.style.color = isDarkMode ? '#a0a0a0' : '#666'
-        title.style.textDecoration = 'none'
       }
     }
 
-    this.wrapper.onclick = () => {
+    // Title click - navigate to page
+    title.onclick = (e) => {
+      e.stopPropagation()
       if (this.data.pageId) {
-        // Navigate directly to subpage (not through sidebar)
         const event = new CustomEvent('navigateToPage', {
           detail: { pageId: this.data.pageId }
         })

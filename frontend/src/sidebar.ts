@@ -1,5 +1,6 @@
 import { getPages, createPage, updatePage } from './api'
 import type { Page } from './types'
+import { showIconPicker } from './iconPicker'
 
 let currentPageId: number | null = null
 let pageSelectCallback: ((pageId: number) => void) | null = null
@@ -16,6 +17,11 @@ export function initSidebar(onPageSelect: (pageId: number) => void) {
     console.error('Sidebar elements not found')
     return
   }
+
+  // Listen for icon updates from PageBlock
+  window.addEventListener('iconUpdated', () => {
+    loadPages(onPageSelect)
+  })
 
   // New Page Button
   newPageBtn.addEventListener('click', async () => {
@@ -201,10 +207,10 @@ export async function loadPages(onPageSelect: (pageId: number) => void) {
   try {
     allPages = await getPages()
     // Filter: Only show pages WITHOUT parent_id (no subpages) AND not home page
-    const mainPages = allPages.filter(page => !page.parent_id && !page.is_home)
+    const mainPages = allPages.filter(page => !page.parent_id && page.page_type !== 'home')
 
     // Split into favorites and all pages
-    const favorites = mainPages.filter(page => page.is_favorite)
+    const favorites = mainPages.filter(page => page.page_type === 'favorite')
 
     // Render favorites
     if (favoritesList) {
@@ -215,7 +221,7 @@ export async function loadPages(onPageSelect: (pageId: number) => void) {
       })
     }
 
-    // Render all main pages (including favorites)
+    // Render ALL main pages (including favorites)
     renderPages(mainPages, onPageSelect)
 
     // Clear search if there was one
@@ -235,13 +241,48 @@ export async function loadPages(onPageSelect: (pageId: number) => void) {
 function createPageItem(page: Page, onPageSelect: (pageId: number) => void): HTMLElement {
   const pageItem = document.createElement('div')
   pageItem.className = 'page-item'
-  pageItem.textContent = page.title
   pageItem.dataset.pageId = String(page.id)
   pageItem.draggable = true
+
+  // Icon element
+  const iconEl = document.createElement('span')
+  iconEl.className = 'page-icon'
+  iconEl.style.cssText = 'margin-right: 8px; user-select: none; display: inline-flex; align-items: center;'
+
+  // Check if icon is URL or emoji
+  if (page.icon && page.icon.startsWith('http')) {
+    const img = document.createElement('img')
+    img.src = page.icon
+    img.style.cssText = 'width: 16px; height: 16px; object-fit: cover; border-radius: 2px;'
+    iconEl.appendChild(img)
+  } else {
+    iconEl.textContent = page.icon || '📄'
+  }
+
+  // Title element
+  const titleEl = document.createElement('span')
+  titleEl.className = 'page-title'
+  titleEl.textContent = page.title
+  titleEl.style.cssText = 'flex: 1; cursor: default; text-decoration: none;'
+
+  pageItem.appendChild(iconEl)
+  pageItem.appendChild(titleEl)
 
   if (page.id === currentPageId) {
     pageItem.classList.add('active')
   }
+
+  // Icon double-click handler - show picker
+  iconEl.addEventListener('dblclick', (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    showIconPicker(page.id, iconEl, () => {
+      // Reload sidebar to update icon in both lists
+      if (pageSelectCallback) {
+        loadPages(pageSelectCallback)
+      }
+    })
+  })
 
   // Drag & Drop handlers
   pageItem.addEventListener('dragstart', (e) => {
@@ -282,13 +323,18 @@ function createPageItem(page: Page, onPageSelect: (pageId: number) => void): HTM
   })
 
   // Single click - select page
-  pageItem.addEventListener('click', () => {
+  pageItem.addEventListener('click', (e) => {
+    // Don't trigger if clicking on icon or its children (like img)
+    const target = e.target as Node
+    if (target === iconEl || iconEl.contains(target)) {
+      return
+    }
     onPageSelect(page.id)
     setActivePage(page.id)
   })
 
   // Double click - edit title inline
-  pageItem.addEventListener('dblclick', (e) => {
+  titleEl.addEventListener('dblclick', (e) => {
     e.stopPropagation()
     const input = document.createElement('input')
     input.type = 'text'
@@ -296,20 +342,21 @@ function createPageItem(page: Page, onPageSelect: (pageId: number) => void): HTM
     input.className = 'page-item-edit'
 
     input.style.cssText = `
-      width: 100%;
-      padding: 8px 12px;
+      flex: 1;
+      padding: 4px 8px;
       border: 1px solid #007bff;
       border-radius: 4px;
       font-size: 14px;
       font-family: inherit;
       outline: none;
+      background: transparent;
     `
 
     const saveTitle = async () => {
       const newTitle = input.value.trim() || 'Untitled'
       try {
         await updatePage(page.id, { title: newTitle })
-        pageItem.textContent = newTitle
+        titleEl.textContent = newTitle
 
         // Update header if this is the active page
         if (page.id === currentPageId) {
@@ -320,7 +367,7 @@ function createPageItem(page: Page, onPageSelect: (pageId: number) => void): HTM
         }
       } catch (error) {
         console.error('Failed to update title:', error)
-        pageItem.textContent = page.title
+        titleEl.textContent = page.title
       }
     }
 
@@ -329,12 +376,12 @@ function createPageItem(page: Page, onPageSelect: (pageId: number) => void): HTM
       if (e.key === 'Enter') {
         input.blur()
       } else if (e.key === 'Escape') {
-        pageItem.textContent = page.title
+        titleEl.textContent = page.title
       }
     })
 
-    pageItem.textContent = ''
-    pageItem.appendChild(input)
+    titleEl.textContent = ''
+    titleEl.appendChild(input)
     input.focus()
     input.select()
   })

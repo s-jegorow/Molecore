@@ -66,19 +66,16 @@ export default class HighlightTool {
     `
 
     const colors = [
-      { name: 'Default', bg: '', text: '' },
-      { name: 'Yellow', bg: '#fff3bf', text: '#000000' },
-      { name: 'Orange', bg: '#ffe8cc', text: '#000000' },
-      { name: 'Red', bg: '#ffe0e0', text: '#000000' },
-      { name: 'Pink', bg: '#fce4ec', text: '#000000' },
-      { name: 'Purple', bg: '#e9d5ff', text: '#000000' },
-      { name: 'Blue', bg: '#d0ebff', text: '#000000' },
-      { name: 'Teal', bg: '#c3fae8', text: '#000000' },
-      { name: 'Green', bg: '#d3f9d8', text: '#000000' },
-      { name: 'Gray', bg: '#e9ecef', text: '#000000' },
-      { name: 'Brown', bg: '#e7d7c1', text: '#000000' },
-      { name: 'Dark Blue', bg: '#1971c2', text: '#ffffff' },
-      { name: 'Dark Red', bg: '#c92a2a', text: '#ffffff' }
+      { name: 'Remove', bg: '', text: '' },
+      { name: 'Yellow', bg: '#ffd93d', text: '#000000' },
+      { name: 'Orange', bg: '#ffb74d', text: '#000000' },
+      { name: 'Red', bg: '#ff6b6b', text: '#000000' },
+      { name: 'Pink', bg: '#f06292', text: '#000000' },
+      { name: 'Purple', bg: '#ba68c8', text: '#000000' },
+      { name: 'Blue', bg: '#64b5f6', text: '#000000' },
+      { name: 'Teal', bg: '#4db6ac', text: '#000000' },
+      { name: 'Green', bg: '#81c784', text: '#000000' },
+      { name: 'Gray', bg: '#bdbdbd', text: '#000000' }
     ]
 
     colors.forEach(color => {
@@ -95,20 +92,20 @@ export default class HighlightTool {
       `
       colorBtn.title = color.name
 
-      // Show text color indicator for dark backgrounds
-      if (color.text === '#ffffff') {
-        const textIndicator = document.createElement('span')
-        textIndicator.textContent = 'A'
-        textIndicator.style.cssText = `
+      // Show X for Remove option
+      if (!color.bg && !color.text) {
+        const removeIcon = document.createElement('span')
+        removeIcon.textContent = '×'
+        removeIcon.style.cssText = `
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
-          color: white;
-          font-size: 12px;
+          color: #666;
+          font-size: 20px;
           font-weight: bold;
         `
-        colorBtn.appendChild(textIndicator)
+        colorBtn.appendChild(removeIcon)
       }
 
       colorBtn.addEventListener('mouseenter', () => {
@@ -121,7 +118,9 @@ export default class HighlightTool {
 
       colorBtn.addEventListener('click', () => {
         this.applyHighlight(color.bg, color.text)
-        document.body.removeChild(popup)
+        if (popup.parentNode) {
+          popup.parentNode.removeChild(popup)
+        }
       })
 
       popup.appendChild(colorBtn)
@@ -138,7 +137,9 @@ export default class HighlightTool {
     setTimeout(() => {
       const closeHandler = (e: MouseEvent) => {
         if (!popup.contains(e.target as Node)) {
-          document.body.removeChild(popup)
+          if (popup.parentNode) {
+            popup.parentNode.removeChild(popup)
+          }
           document.removeEventListener('click', closeHandler)
         }
       }
@@ -151,6 +152,24 @@ export default class HighlightTool {
     if (!selection || selection.rangeCount === 0) return
 
     const range = selection.getRangeAt(0)
+
+    // If no color (Remove option), unwrap any existing mark tags
+    if (!bgColor && !textColor) {
+      const selectedElement = range.commonAncestorContainer
+      const parentMark = selectedElement.nodeType === Node.TEXT_NODE
+        ? (selectedElement.parentElement?.closest('mark') as HTMLElement)
+        : (selectedElement as HTMLElement).closest('mark')
+
+      if (parentMark) {
+        const parent = parentMark.parentNode
+        while (parentMark.firstChild) {
+          parent?.insertBefore(parentMark.firstChild, parentMark)
+        }
+        parent?.removeChild(parentMark)
+      }
+      return
+    }
+
     const mark = document.createElement('mark')
 
     if (bgColor) {

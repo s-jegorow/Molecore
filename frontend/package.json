@@ -17,7 +17,8 @@
     "@editorjs/marker": "^1.4.0",
     "@editorjs/paragraph": "^2.11.7",
     "@editorjs/table": "^2.4.5",
-    "editorjs-drag-drop": "^1.1.16"
+    "editorjs-drag-drop": "^1.1.16",
+    "editorjs-toggle-block": "^0.3.16"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

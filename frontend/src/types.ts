@@ -3,8 +3,9 @@ export interface Page {
   title: string
   content: EditorJSContent
   parent_id: number | null
-  is_favorite: boolean
-  is_home: boolean
+  page_type: string
+  icon: string | null
+  header: string | null
   order: number
   user_id: number
   created_at: string
@@ -15,14 +16,18 @@ export interface PageCreate {
   title: string
   content: EditorJSContent
   parent_id?: number | null
-  is_favorite?: boolean
+  page_type?: string
+  icon?: string | null
+  header?: string | null
 }
 
 export interface PageUpdate {
   title?: string
   content?: EditorJSContent
   parent_id?: number | null
-  is_favorite?: boolean
+  page_type?: string
+  icon?: string | null
+  header?: string | null
   order?: number
 }
 

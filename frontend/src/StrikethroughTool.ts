@@ -24,9 +24,9 @@ export default class StrikethroughTool {
     this.button = document.createElement('button')
     this.button.type = 'button'
     this.button.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <path d="M2 7.5h12v1H2z" fill="currentColor"/>
-        <path d="M5 4c0-.6.4-1 1-1h4c.6 0 1 .4 1 1v2h-1V4.5H6V6H5V4zm1 8c0 .6.4 1 1 1h2c.6 0 1-.4 1-1v-2h1v2c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2v-2h1v2z" fill="currentColor"/>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 8.5H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M5 4.5C5 3.67 5.67 3 6.5 3H9.5C10.33 3 11 3.67 11 4.5V6M5 11.5C5 12.33 5.67 13 6.5 13H9.5C10.33 13 11 12.33 11 11.5V10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
       </svg>
     `
     this.button.classList.add('ce-inline-tool')
