@@ -1,4 +1,4 @@
-import { updatePage } from './api'
+import { updatePage, API_URL } from './api'
 import { Modal } from './Modal'
 
 export async function showIconPicker(
@@ -124,7 +124,7 @@ export async function showIconPicker(
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch('http://127.0.0.1:8000/api/upload', {
+        const response = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
           body: formData
         })
@@ -132,7 +132,7 @@ export async function showIconPicker(
         if (!response.ok) throw new Error('Upload failed')
 
         const data = await response.json()
-        const iconPath = `http://127.0.0.1:8000${data.url}`
+        const iconPath = `${API_URL}${data.url}`
 
         await updatePage(pageId, { icon: iconPath })
 

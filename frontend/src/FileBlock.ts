@@ -1,4 +1,5 @@
 import { Modal } from './Modal'
+import { API_URL } from './api'
 
 export default class FileBlock {
   private api: any
@@ -85,7 +86,7 @@ export default class FileBlock {
       formData.append('file', file)
       formData.append('upload_type', 'file')
 
-      const response = await fetch('http://127.0.0.1:8000/api/upload', {
+      const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData
       })
@@ -93,7 +94,7 @@ export default class FileBlock {
       if (!response.ok) throw new Error('Upload failed')
 
       const data = await response.json()
-      this.data.url = `http://127.0.0.1:8000${data.url}`
+      this.data.url = `${API_URL}${data.url}`
       this.data.fileName = file.name
       this.data.fileSize = file.size
       this.data.fileType = file.type

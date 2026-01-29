@@ -16,6 +16,7 @@ export interface ModalOptions {
 class ModalManager {
   private container: HTMLElement | null = null
   private activeModal: HTMLElement | null = null
+  private closePromise: Promise<void> | null = null
 
   constructor() {
     this.init()
@@ -35,8 +36,8 @@ class ModalManager {
    * Show a simple alert modal
    */
   alert(message: string, title?: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.show({
+    return new Promise(async (resolve) => {
+      await this.show({
         title: title || 'Alert',
         message,
         type: 'info',
@@ -51,8 +52,8 @@ class ModalManager {
    * Show a confirmation modal
    */
   confirm(message: string, title?: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.show({
+    return new Promise(async (resolve) => {
+      await this.show({
         title: title || 'Confirm',
         message,
         type: 'warning',
@@ -69,8 +70,8 @@ class ModalManager {
    * Show a success message
    */
   success(message: string, title?: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.show({
+    return new Promise(async (resolve) => {
+      await this.show({
         title: title || 'Success',
         message,
         type: 'success',
@@ -85,8 +86,8 @@ class ModalManager {
    * Show an error message
    */
   error(message: string, title?: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.show({
+    return new Promise(async (resolve) => {
+      await this.show({
         title: title || 'Error',
         message,
         type: 'error',
@@ -100,9 +101,11 @@ class ModalManager {
   /**
    * Show a custom modal
    */
-  show(options: ModalOptions) {
-    // Close any existing modal first
-    this.close()
+  async show(options: ModalOptions) {
+    // Wait for any existing modal to fully close first
+    if (this.closePromise) {
+      await this.closePromise
+    }
 
     const {
       title = 'Alert',
@@ -157,20 +160,25 @@ class ModalManager {
     }
 
     confirmBtn.addEventListener('click', handleConfirm)
-    overlay.addEventListener('click', handleCancel)
+
+    // Only allow overlay/escape to close for modals with cancel button (confirm dialogs)
+    // Success/Error/Info modals should only close via OK button
+    if (showCancel) {
+      overlay.addEventListener('click', handleCancel)
+
+      // Handle Escape key
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCancel()
+          document.removeEventListener('keydown', handleEscape)
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+    }
 
     if (cancelBtn) {
       cancelBtn.addEventListener('click', handleCancel)
     }
-
-    // Handle Escape key
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleCancel()
-        document.removeEventListener('keydown', handleEscape)
-      }
-    }
-    document.addEventListener('keydown', handleEscape)
 
     // Add to container
     this.container?.appendChild(modal)
@@ -188,10 +196,14 @@ class ModalManager {
   close() {
     if (this.activeModal) {
       this.activeModal.classList.remove('alert-modal-show')
-      setTimeout(() => {
-        this.activeModal?.remove()
-        this.activeModal = null
-      }, 300) // Match animation duration
+      this.closePromise = new Promise((resolve) => {
+        setTimeout(() => {
+          this.activeModal?.remove()
+          this.activeModal = null
+          this.closePromise = null
+          resolve()
+        }, 300) // Match animation duration
+      })
     }
   }
 

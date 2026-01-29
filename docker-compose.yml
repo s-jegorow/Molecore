@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: molecore-db
+    environment:
+      POSTGRES_USER: molecore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: molecore
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: molecore-backend
+    environment:
+      DATABASE_URL: postgresql://molecore:${POSTGRES_PASSWORD}@postgres:5432/molecore
+      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      - postgres
+    networks:
+      - backend-network
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID}
+    container_name: molecore-frontend
+    depends_on:
+      - backend
+    networks:
+      - backend-network
+    restart: unless-stopped
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data:
+  backend_uploads:
+
+networks:
+  backend-network:
+    driver: bridge

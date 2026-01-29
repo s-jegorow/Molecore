@@ -1,13 +1,9 @@
-import './style.css'
 import EditorJS from '@editorjs/editorjs'
 import Header from '@editorjs/header'
 import List from '@editorjs/list'
 import Code from '@editorjs/code'
 import Table from '@editorjs/table'
-// @ts-ignore
-import * as ToggleBlockModule from 'editorjs-toggle-block'
-// @ts-ignore
-const ToggleBlock = ToggleBlockModule.default || ToggleBlockModule
+import CustomToggleBlock from './CustomToggleBlock'
 import ParagraphWithBlanks from './ParagraphWithBlanks'
 import ResizableImage from './ResizableImage'
 import BackgroundColorTune from './BackgroundColorTune'
@@ -21,10 +17,13 @@ import PageBlock from './PageBlock'
 import AudioBlock from './AudioBlock'
 import FileBlock from './FileBlock'
 import EmbedBlock from './EmbedBlock'
-import { getPage, getPages, updatePage, deletePage } from './api'
+import { getPage, getPages, updatePage, deletePage, API_URL } from './api'
 import { initSidebar, setActivePage, loadPages } from './sidebar'
+import { initMobileMenu, loadMobilePages } from './mobileMenu'
 import { UndoManager } from './UndoManager'
 import { Modal } from './Modal'
+import { initKeycloak, isAuthenticated, login, logout, getUserInfo, getToken } from './keycloak'
+
 
 let currentPageId: number | null = null
 let editor: EditorJS
@@ -61,7 +60,7 @@ function initEditor() {
         tunes: ['backgroundColor']
       },
       toggle: {
-        class: ToggleBlock as any,
+        class: CustomToggleBlock as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
         tunes: ['backgroundColor']
       },
@@ -229,9 +228,23 @@ async function loadPage(pageId: number) {
     // Update header image
     updateHeaderImage(page.header)
 
+    // Update delete button visibility
+    updateDeleteButtonVisibility(page.page_type === 'home')
+
     console.log('Page loaded:', page.title)
   } catch (error) {
     console.error('Failed to load page:', error)
+  }
+}
+
+function updateDeleteButtonVisibility(isHomePage: boolean) {
+  const deleteBtn = document.getElementById('delete-btn')
+  if (!deleteBtn) return
+
+  if (isHomePage) {
+    deleteBtn.style.display = 'none'
+  } else {
+    deleteBtn.style.display = 'flex'
   }
 }
 
@@ -262,7 +275,21 @@ function updateHeaderImage(headerPath: string | null | undefined) {
 
 // Dark mode handler
 const darkmodeBtn = document.getElementById('darkmode-btn')
-let isDarkMode = localStorage.getItem('darkMode') === 'true'
+const mobileDarkmodeBtn = document.getElementById('mobile-darkmode-btn')
+
+// Check if mobile (screen width <= 768px)
+const isMobile = () => window.innerWidth <= 768
+
+// Default: Desktop = dark, Mobile = light (if no preference saved)
+const savedMode = localStorage.getItem('darkMode')
+let isDarkMode = savedMode !== null ? savedMode === 'true' : !isMobile()
+
+function updateLogo() {
+  const logoImg = document.querySelector('.logo img') as HTMLImageElement
+  if (logoImg) {
+    logoImg.src = isDarkMode ? '/molecore-logo-dark.png' : '/molecore-logo-light.png'
+  }
+}
 
 function toggleDarkMode() {
   isDarkMode = !isDarkMode
@@ -271,19 +298,85 @@ function toggleDarkMode() {
   if (isDarkMode) {
     document.body.classList.add('dark-mode')
     darkmodeBtn?.classList.add('active')
+    mobileDarkmodeBtn?.classList.add('active')
   } else {
     document.body.classList.remove('dark-mode')
     darkmodeBtn?.classList.remove('active')
+    mobileDarkmodeBtn?.classList.remove('active')
   }
+
+  updateLogo()
 }
 
 // Apply saved dark mode preference on load
 if (isDarkMode) {
   document.body.classList.add('dark-mode')
   darkmodeBtn?.classList.add('active')
+  mobileDarkmodeBtn?.classList.add('active')
 }
+updateLogo()
 
 darkmodeBtn?.addEventListener('click', toggleDarkMode)
+mobileDarkmodeBtn?.addEventListener('click', toggleDarkMode)
+
+// Login/Logout handler
+const loginBtn = document.getElementById('login-btn')
+const logoutBtn = document.getElementById('logout-btn')
+const userGreeting = document.getElementById('user-greeting')
+
+const mobileLoginBtn = document.getElementById('mobile-login-btn')
+const mobileLogoutBtn = document.getElementById('mobile-logout-btn')
+
+loginBtn?.addEventListener('click', () => {
+  login()
+})
+
+logoutBtn?.addEventListener('click', () => {
+  logout()
+})
+
+mobileLoginBtn?.addEventListener('click', () => {
+  login()
+})
+
+mobileLogoutBtn?.addEventListener('click', () => {
+  logout()
+})
+
+function updateUserUI(authenticated: boolean) {
+  const newPageBtn = document.getElementById('new-page-btn')
+  const pagesSection = document.getElementById('pages-section')
+  const favoritesSection = document.getElementById('favorites-section')
+  const searchContainer = document.getElementById('search-container')
+  const settingsBtn = document.getElementById('settings-btn')
+
+  if (authenticated) {
+    const userInfo = getUserInfo()
+    const username = userInfo?.preferred_username || userInfo?.name || 'User'
+
+    if (userGreeting) userGreeting.textContent = `Hello ${username}`
+    if (loginBtn) loginBtn.style.display = 'none'
+    if (logoutBtn) logoutBtn.style.display = 'block'
+    if (mobileLoginBtn) mobileLoginBtn.style.display = 'none'
+    if (mobileLogoutBtn) mobileLogoutBtn.style.display = 'block'
+    if (newPageBtn) newPageBtn.style.display = 'block'
+    if (pagesSection) pagesSection.style.display = 'block'
+    if (favoritesSection) favoritesSection.style.display = 'block'
+    if (searchContainer) searchContainer.style.display = 'block'
+    if (settingsBtn) settingsBtn.style.display = 'block'
+  } else {
+    if (userGreeting) userGreeting.textContent = 'Hello Guest'
+    if (loginBtn) loginBtn.style.display = 'block'
+    if (logoutBtn) logoutBtn.style.display = 'none'
+    if (mobileLoginBtn) mobileLoginBtn.style.display = 'block'
+    if (mobileLogoutBtn) mobileLogoutBtn.style.display = 'none'
+    if (newPageBtn) newPageBtn.style.display = 'none'
+    if (pagesSection) pagesSection.style.display = 'none'
+    if (favoritesSection) favoritesSection.style.display = 'none'
+    if (searchContainer) searchContainer.style.display = 'none'
+    if (settingsBtn) settingsBtn.style.display = 'none'
+  }
+}
 
 // Settings modal handler
 const settingsBtn = document.getElementById('settings-btn')
@@ -306,13 +399,19 @@ settingsModal?.addEventListener('click', (e) => {
 })
 
 cleanupUploadsBtn?.addEventListener('click', async () => {
-  if (!confirm('Are you sure you want to clean up unused files? This will permanently delete files that are no longer referenced in any page.')) {
-    return
-  }
+  const confirmed = await Modal.confirm('Are you sure you want to clean up unused files? This will permanently delete files that are no longer referenced in any page.', 'Clean Up Files')
+  if (!confirmed) return
+
+  // Close settings modal immediately so it doesn't interfere with result modal
+  settingsModal?.classList.remove('active')
 
   try {
-    const response = await fetch('http://localhost:8000/api/cleanup-uploads', {
-      method: 'POST'
+    const token = await getToken()
+    const response = await fetch(`${API_URL}/api/cleanup-uploads`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
     })
 
     if (!response.ok) {
@@ -346,7 +445,7 @@ headerElement?.addEventListener('dblclick', (e) => {
       formData.append('file', file)
       formData.append('upload_type', 'header')
 
-      const response = await fetch('http://127.0.0.1:8000/api/upload', {
+      const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData
       })
@@ -354,7 +453,7 @@ headerElement?.addEventListener('dblclick', (e) => {
       if (!response.ok) throw new Error('Upload failed')
 
       const data = await response.json()
-      const headerPath = `http://127.0.0.1:8000${data.url}`
+      const headerPath = `${API_URL}${data.url}`
 
       await updatePage(currentPageId, { header: headerPath })
       updateHeaderImage(headerPath)
@@ -396,35 +495,25 @@ const deleteBtn = document.getElementById('delete-btn')
 deleteBtn?.addEventListener('click', async () => {
   if (!currentPageId) return
 
-  const confirmed = confirm('Are you sure you want to delete this page? This action cannot be undone.')
+  const confirmed = await Modal.confirm('Are you sure you want to delete this page? This action cannot be undone.', 'Delete Page')
   if (!confirmed) return
 
   try {
     await deletePage(currentPageId)
 
-    // Clear editor
-    if (editor) {
-      await editor.isReady
-      await editor.clear()
-    }
-
-    // Clear title
-    const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
-    if (pageTitleInput) {
-      pageTitleInput.value = 'Untitled'
-    }
-
-    // Reset current page
-    currentPageId = null
-    ;(window as any).currentPageId = null
-
-    // Reload sidebar
+    // Reload sidebar first
     await loadPages(loadPage)
 
-    console.log('Page deleted')
-  } catch (error) {
+    // Navigate to home page
+    const allPages = await getPages()
+    const homePage = allPages.find(p => p.page_type === 'home')
+    if (homePage) {
+      await loadPage(homePage.id)
+    }
+  } catch (error: any) {
     console.error('Failed to delete page:', error)
-    await Modal.error('Failed to delete page. Please try again.')
+    const errorMessage = error?.message || 'Failed to delete page. Please try again.'
+    await Modal.error(errorMessage)
   }
 })
 
@@ -462,7 +551,6 @@ async function autoSave() {
     const title = pageTitleInput?.value || 'Untitled'
 
     await updatePage(currentPageId, { content, title })
-    console.log('Auto-saved')
   } catch (error) {
     console.error('Auto-save failed:', error)
   }
@@ -485,10 +573,23 @@ window.addEventListener('navigateToPage', (e: any) => {
 
 // Load home page on init
 async function init() {
+  const authenticated = await initKeycloak()
+
+  updateUserUI(authenticated)
+
+  if (!authenticated) {
+    return
+  }
+
+  const welcomeScreen = document.getElementById('welcome-screen')
+  const appContent = document.getElementById('app-content')
+  if (welcomeScreen) welcomeScreen.style.display = 'none'
+  if (appContent) appContent.classList.add('active')
+
   initEditor()
   initSidebar(loadPage)
+  initMobileMenu(loadPage)
 
-  // Load home page by default
   try {
     const allPages = await getPages()
     const homePage = allPages.find(p => p.page_type === 'home')
@@ -499,6 +600,7 @@ async function init() {
     console.error('Failed to load home page:', error)
   }
 }
+
 
 // Logo click handler - load home page
 const logoElement = document.querySelector('.logo')
@@ -558,6 +660,15 @@ document.addEventListener('keydown', async (e) => {
     await undoManager.redo()
     updateUndoRedoButtons()
   }
+})
+
+// Handle session expiration
+window.addEventListener('sessionExpired', () => {
+  const welcomeScreen = document.getElementById('welcome-screen')
+  const appContent = document.getElementById('app-content')
+  if (welcomeScreen) welcomeScreen.style.display = 'flex'
+  if (appContent) appContent.classList.remove('active')
+  updateUserUI(false)
 })
 
 init()

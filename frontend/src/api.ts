@@ -1,17 +1,31 @@
 import type { Page, PageCreate, PageUpdate } from './types'
+import { getToken } from './keycloak'
 
-const API_URL = 'http://127.0.0.1:8000'
+// Production only - nginx handles routing
+export const API_URL = ''
+
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const token = await getToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  }
+}
 
 // Alle Pages laden
 export async function getPages(): Promise<Page[]> {
-  const response = await fetch(`${API_URL}/api/pages`)
+  const response = await fetch(`${API_URL}/api/pages`, {
+    headers: await getAuthHeaders()
+  })
   if (!response.ok) throw new Error('Failed to fetch pages')
   return response.json()
 }
 
 // Eine Page laden
 export async function getPage(id: number): Promise<Page> {
-  const response = await fetch(`${API_URL}/api/pages/${id}`)
+  const response = await fetch(`${API_URL}/api/pages/${id}`, {
+    headers: await getAuthHeaders()
+  })
   if (!response.ok) throw new Error('Failed to fetch page')
   return response.json()
 }
@@ -20,7 +34,7 @@ export async function getPage(id: number): Promise<Page> {
 export async function createPage(data: PageCreate): Promise<Page> {
   const response = await fetch(`${API_URL}/api/pages`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(data)
   })
   if (!response.ok) throw new Error('Failed to create page')
@@ -31,7 +45,7 @@ export async function createPage(data: PageCreate): Promise<Page> {
 export async function updatePage(id: number, data: PageUpdate): Promise<Page> {
   const response = await fetch(`${API_URL}/api/pages/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(data)
   })
   if (!response.ok) throw new Error('Failed to update page')
@@ -41,7 +55,8 @@ export async function updatePage(id: number, data: PageUpdate): Promise<Page> {
 // Page löschen
 export async function deletePage(id: number): Promise<void> {
   const response = await fetch(`${API_URL}/api/pages/${id}`, {
-    method: 'DELETE'
+    method: 'DELETE',
+    headers: await getAuthHeaders()
   })
   if (!response.ok) throw new Error('Failed to delete page')
 }

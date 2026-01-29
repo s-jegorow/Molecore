@@ -1,3 +1,5 @@
+import { API_URL } from './api'
+
 export default class ResizableImage {
   private data: { url: string; width?: number }
   private wrapper: HTMLElement | null = null
@@ -188,7 +190,7 @@ export default class ResizableImage {
       formData.append('image', file)
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/upload', {
+        const response = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
           body: formData
         })

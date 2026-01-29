@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: molecore-db
+    environment:
+      POSTGRES_USER: molecore
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: molecore
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+
+  backend:
+    image: molecore-backend:latest
+    container_name: webapp-molecore-backend
+    environment:
+      DATABASE_URL: postgresql://molecore:${POSTGRES_PASSWORD}@postgres:5432/molecore
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      - postgres
+    networks:
+      - backend-network
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: molecore-frontend:latest
+    container_name: webapp-molecore-frontend
+    depends_on:
+      - backend
+    networks:
+      - backend-network
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  backend_uploads:
+
+networks:
+  backend-network:
+    driver: bridge
