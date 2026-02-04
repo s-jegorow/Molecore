@@ -1,5 +1,5 @@
 import type { Page, PageCreate, PageUpdate } from './types'
-import { getToken } from './keycloak'
+import { getToken } from './auth'
 
 // Production only - nginx handles routing
 export const API_URL = ''

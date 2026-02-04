@@ -1,5 +1,6 @@
 import { Modal } from './Modal'
 import { API_URL } from './api'
+import { getToken } from './auth'
 
 export default class AudioBlock {
   private api: any
@@ -86,8 +87,16 @@ export default class AudioBlock {
       formData.append('file', file)
       formData.append('upload_type', 'audio')
 
+      const token = await getToken()
+
+      const headers: HeadersInit = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
+        headers,
         body: formData
       })
 

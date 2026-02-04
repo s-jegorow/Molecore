@@ -42,3 +42,5 @@ export interface EditorJSBlock {
   type: string
   data: any
 }
+
+export type PageSelectCallback = (pageId: number) => void

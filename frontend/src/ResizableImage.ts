@@ -1,4 +1,5 @@
 import { API_URL } from './api'
+import { getToken } from './auth'
 
 export default class ResizableImage {
   private data: { url: string; width?: number }
@@ -190,8 +191,16 @@ export default class ResizableImage {
       formData.append('image', file)
 
       try {
+        const token = await getToken()
+
+        const headers: HeadersInit = {}
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+
         const response = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
+          headers,
           body: formData
         })
         const result = await response.json()

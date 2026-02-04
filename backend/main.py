@@ -16,19 +16,15 @@ from auth import get_current_user
 # Tabellen erstellen beim Start
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="molecore API")
+app = FastAPI(title="nx API")
 
-# CORS configuration from environment variable
-cors_origins = os.getenv("CORS_ORIGINS")
-if not cors_origins:
-    raise ValueError("CORS_ORIGINS environment variable is required (comma-separated list of allowed origins)")
-
+# CORS für Frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins.split(","),
+    allow_origins=["https://your-frontend-domain.com"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Static files für uploads
@@ -301,17 +297,17 @@ async def upload_file(
         if uploaded_file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail="Only audio files are allowed")
     elif upload_type == "file":
-        # General file uploads (PDFs, docs, etc.)
-        allowed_types = [
-            "application/pdf",
-            "application/zip",
-            "application/x-zip-compressed",
-            "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain"
+        # General file uploads - allow all types except executables
+        blocked_types = [
+            "application/x-msdownload",
+            "application/x-executable",
+            "application/x-msdos-program"
         ]
-        if uploaded_file.content_type not in allowed_types:
-            raise HTTPException(status_code=400, detail="File type not allowed")
+        blocked_extensions = [".exe", ".bat", ".cmd", ".sh", ".msi"]
+        file_ext = Path(uploaded_file.filename).suffix.lower() if uploaded_file.filename else ""
+
+        if uploaded_file.content_type in blocked_types or file_ext in blocked_extensions:
+            raise HTTPException(status_code=400, detail="Executable files are not allowed")
 
     # Read content
     content = await uploaded_file.read()
@@ -374,6 +370,32 @@ async def upload_file(
         "file": {
             "url": f"/uploads/{user_id}/{new_filename}"
         }
+    }
+
+@app.get("/api/storage-usage")
+def get_storage_usage(current_user: dict = Depends(get_current_user)):
+    """Get storage usage for current user"""
+    user_id = current_user.get("user_id")
+    usage_bytes = get_user_storage_usage(user_id)
+
+    # Convert to human-readable format
+    if usage_bytes < 1024:
+        usage_str = f"{usage_bytes} B"
+    elif usage_bytes < 1024 * 1024:
+        usage_str = f"{usage_bytes / 1024:.1f} KB"
+    else:
+        usage_str = f"{usage_bytes / (1024 * 1024):.1f} MB"
+
+    # Quota is 500 MB
+    quota_bytes = 500 * 1024 * 1024
+    percentage = (usage_bytes / quota_bytes) * 100
+
+    return {
+        "usage_bytes": usage_bytes,
+        "usage_formatted": usage_str,
+        "quota_bytes": quota_bytes,
+        "quota_formatted": "500 MB",
+        "percentage": round(percentage, 1)
     }
 
 @app.post("/api/cleanup-uploads")

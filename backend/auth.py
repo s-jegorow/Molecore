@@ -2,22 +2,12 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import httpx
-import os
 from typing import Optional, Dict
 from functools import lru_cache
 
-# Keycloak configuration from environment variables
-KEYCLOAK_URL = os.getenv("KEYCLOAK_SERVER_URL")
-REALM = os.getenv("KEYCLOAK_REALM")
-CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID")
-
-# Validate required environment variables
-if not KEYCLOAK_URL:
-    raise ValueError("KEYCLOAK_SERVER_URL environment variable is required")
-if not REALM:
-    raise ValueError("KEYCLOAK_REALM environment variable is required")
-if not CLIENT_ID:
-    raise ValueError("KEYCLOAK_CLIENT_ID environment variable is required")
+KEYCLOAK_URL = "https://your-keycloak-server.com"
+REALM = "your-realm"
+CLIENT_ID = "your-client-id"
 
 security = HTTPBearer()
 

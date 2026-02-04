@@ -39,7 +39,7 @@
             <button id="login-btn">Login</button>
             <button id="logout-btn" style="display: none;">Logout</button>
             <button id="darkmode-btn">☾</button>
-            <button id="settings-btn">⚙</button>
+            <button id="settings-btn">👤</button>
           </div>
         </div>
       </div>
@@ -74,16 +74,41 @@
   <div id="settings-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Settings</h2>
+        <h2>Profile</h2>
         <button class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
+        <!-- Profile Section -->
+        <div class="settings-section" id="profile-section">
+          <h3>Profile</h3>
+          <div class="profile-info">
+            <div class="profile-avatar">👤</div>
+            <div class="profile-details">
+              <span class="profile-username" id="profile-username">User</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Storage Section -->
         <div class="settings-section">
           <h3>Storage</h3>
+          <div class="storage-info" id="storage-info">
+            <div class="storage-bar-container">
+              <div class="storage-bar" id="storage-bar"></div>
+            </div>
+            <p class="storage-text" id="storage-text">Loading...</p>
+          </div>
           <button id="cleanup-uploads-btn" class="settings-action-btn">
             🗑️ Clean Up Unused Files
           </button>
           <p class="settings-help">Remove uploaded files that are no longer used in any page.</p>
+        </div>
+
+        <!-- Logout Section -->
+        <div class="settings-section">
+          <button id="settings-logout-btn" class="settings-action-btn settings-logout-btn">
+            Logout
+          </button>
         </div>
       </div>
     </div>
@@ -91,8 +116,7 @@
 
   <!-- Mobile Bottom Menu -->
   <nav id="mobile-bottom-menu">
-    <button id="mobile-login-btn" class="mobile-menu-btn">👤</button>
-    <button id="mobile-logout-btn" class="mobile-menu-btn" style="display: none;">👤</button>
+    <button id="mobile-user-btn" class="mobile-menu-btn">👤</button>
     <button id="mobile-menu-toggle" class="mobile-menu-logo">
       <img src="/molecore-logo-dark.png" alt="molecore">
     </button>

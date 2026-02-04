@@ -68,7 +68,7 @@ export default class BackgroundColorTune {
         try {
           this.block.dispatchChange()
         } catch (err) {
-          console.log('dispatchChange failed:', err)
+          // Silently ignore - not critical
         }
       }
 

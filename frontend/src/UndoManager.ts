@@ -41,7 +41,6 @@ export class UndoManager {
         this.currentIndex++
       }
 
-      console.log(`History captured. Index: ${this.currentIndex}, Total: ${this.history.length}`)
     } catch (err) {
       console.error('Failed to capture state:', err)
     }
@@ -49,7 +48,6 @@ export class UndoManager {
 
   async undo() {
     if (!this.canUndo()) {
-      console.log('Cannot undo - no history')
       return false
     }
 
@@ -61,7 +59,6 @@ export class UndoManager {
       await this.editor.render(state.content)
       this.isRestoring = false
 
-      console.log(`Undo to index: ${this.currentIndex}`)
       return true
     } catch (err) {
       console.error('Undo failed:', err)
@@ -73,7 +70,6 @@ export class UndoManager {
 
   async redo() {
     if (!this.canRedo()) {
-      console.log('Cannot redo - no future states')
       return false
     }
 
@@ -85,7 +81,6 @@ export class UndoManager {
       await this.editor.render(state.content)
       this.isRestoring = false
 
-      console.log(`Redo to index: ${this.currentIndex}`)
       return true
     } catch (err) {
       console.error('Redo failed:', err)

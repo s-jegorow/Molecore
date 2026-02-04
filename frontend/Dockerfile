@@ -2,16 +2,6 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Build arguments for environment variables
-ARG VITE_KEYCLOAK_URL
-ARG VITE_KEYCLOAK_REALM
-ARG VITE_KEYCLOAK_CLIENT_ID
-
-# Set environment variables for Vite build
-ENV VITE_KEYCLOAK_URL=$VITE_KEYCLOAK_URL
-ENV VITE_KEYCLOAK_REALM=$VITE_KEYCLOAK_REALM
-ENV VITE_KEYCLOAK_CLIENT_ID=$VITE_KEYCLOAK_CLIENT_ID
-
 # Copy package files
 COPY package*.json ./
 
