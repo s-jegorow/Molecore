@@ -2,6 +2,8 @@
 
 A minimalist, self-hosted block-based note-taking application with Keycloak authentication developed by me out of frustration with current note tools like Obsidian or Notion...
 
+![Molecore Screenshot](molecorescreenshot.png)
+
 ## Features
 
 - Rich content block types: Text, Headers, Lists, Code, Tables, Images, Audio, Files, Embeds
