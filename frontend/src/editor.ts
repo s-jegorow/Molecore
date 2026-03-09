@@ -4,9 +4,11 @@ import List from '@editorjs/list'
 import Code from '@editorjs/code'
 import Table from '@editorjs/table'
 import CustomToggleBlock from './CustomToggleBlock'
+import CalloutBlock, { applyCalloutForeignKeys, initCalloutObserver } from './CalloutBlock'
 import ParagraphWithBlanks from './ParagraphWithBlanks'
 import ResizableImage from './ResizableImage'
 import BackgroundColorTune from './BackgroundColorTune'
+import WrapCalloutTune from './WrapCalloutTune'
 import ColorTool from './ColorTool'
 import HighlightTool from './HighlightTool'
 import UnderlineTool from './UnderlineTool'
@@ -41,30 +43,34 @@ export function initEditor(
       paragraph: {
         class: ParagraphWithBlanks,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
       },
       header: {
         class: Header as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
       },
       list: {
         class: List as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
       },
       code: {
         class: Code as any,
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
       },
       table: {
         class: Table as any,
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
       },
       toggle: {
         class: CustomToggleBlock as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
-        tunes: ['backgroundColor']
+        tunes: ['backgroundColor', 'wrapCallout']
+      },
+      callout: {
+        class: CalloutBlock as any,
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
       },
       image: ResizableImage as any,
       audio: AudioBlock as any,
@@ -76,7 +82,8 @@ export function initEditor(
       underline: UnderlineTool as any,
       strikethrough: StrikethroughTool as any,
       page: PageBlock as any,
-      backgroundColor: BackgroundColorTune as any
+      backgroundColor: BackgroundColorTune as any,
+      wrapCallout: WrapCalloutTune as any,
     },
 
     placeholder: 'Type / for commands...',
@@ -128,6 +135,9 @@ export function initEditor(
           }
         })
       }
+
+      // Set up MutationObserver for reliable callout foreignKey styling
+      initCalloutObserver()
     },
 
     onChange: async () => {

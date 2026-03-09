@@ -9,6 +9,7 @@ class AppState {
   private _editor: EditorJS | null = null
   private _undoManager: UndoManager | null = null
   private _autoSaveTimeout: number | null = null
+  private _isSaving: boolean = false
 
   get currentPageId(): number | null {
     return this._currentPageId
@@ -46,6 +47,14 @@ class AppState {
     this._autoSaveTimeout = timeout
   }
 
+  get isSaving(): boolean {
+    return this._isSaving
+  }
+
+  set isSaving(saving: boolean) {
+    this._isSaving = saving
+  }
+
   clearAutoSaveTimeout(): void {
     if (this._autoSaveTimeout !== null) {
       clearTimeout(this._autoSaveTimeout)
@@ -57,6 +66,7 @@ class AppState {
     this._currentPageId = null
     this._editor = null
     this._undoManager = null
+    this._isSaving = false
     this.clearAutoSaveTimeout()
   }
 }

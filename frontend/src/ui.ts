@@ -176,6 +176,16 @@ export function initMobilePageList(onPageSelect: PageSelectCallback) {
 }
 
 // Set active page indicator
+/**
+ * Refresh both desktop and mobile sidebars (re-fetch pages from API)
+ */
+export async function refreshSidebar(): Promise<void> {
+  if (pageSelectCallback) {
+    await loadDesktopPages(pageSelectCallback)
+    await loadMobilePages(pageSelectCallback)
+  }
+}
+
 export function setActivePage(pageId: number) {
   currentPageId = pageId
 

@@ -5,6 +5,8 @@ import { loadPage, navigateToHomePage, scheduleAutoSave, setupHeaderUpload, setu
 import { initProfileModal, setupProfileButton } from './profile'
 import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
 import { initDesktopPageList, initMobilePageList, initDarkMode, setupLogoClick } from './ui'
+import { Modal } from './Modal'
+import { login } from './auth'
 
 /**
  * Update undo/redo button states
@@ -70,9 +72,24 @@ function setupUndoRedo(): void {
  * Setup session expiration handler
  */
 function setupSessionExpiredHandler(): void {
-  window.addEventListener('session-expired', ((e: CustomEvent) => {
-    alert('Your session has expired. Please log in again.')
-    window.location.reload()
+  window.addEventListener('sessionExpired', (async () => {
+    // Try to save current content before redirecting
+    if (appState.editor && appState.currentPageId) {
+      try {
+        const content = await appState.editor.save()
+        localStorage.setItem('unsavedContent', JSON.stringify({
+          pageId: appState.currentPageId,
+          content,
+          timestamp: Date.now()
+        }))
+      } catch (e) {
+        // Ignore save errors
+      }
+    }
+
+    // Show modal and redirect to login
+    await Modal.error('Your session has expired. Please log in again.')
+    login()
   }) as EventListener)
 }
 

@@ -49,8 +49,8 @@ export default class PageBlock implements BlockTool {
     const isDarkMode = document.body.classList.contains('dark-mode')
 
     this.wrapper.style.cssText = `
-      padding: 8px 4px;
-      margin: 4px 0;
+      padding: 4px 4px;
+      margin: 0;
       background: transparent;
       color: ${isDarkMode ? '#a0a0a0' : '#666'};
       display: flex;
@@ -64,6 +64,8 @@ export default class PageBlock implements BlockTool {
   async renderExistingPage() {
     if (!this.wrapper) return
 
+    // Opt out of EditorJS contentEditable — clicks are for navigation, not text editing
+    this.wrapper.contentEditable = 'false'
     this.wrapper.style.cursor = 'pointer'
 
     // Fetch current page data to get icon
@@ -129,21 +131,25 @@ export default class PageBlock implements BlockTool {
       }
     }
 
-    // Title click - navigate to page
-    title.onclick = (e) => {
+    // Wrapper click - navigate to page (entire row is clickable)
+    // Use mousedown — fires before click/EditorJS/DragDrop can intercept
+    this.wrapper.addEventListener('mousedown', (e) => {
+      // Don't navigate if clicking on the icon (double-click for picker)
+      if ((e.target as HTMLElement).closest('.page-block-icon')) return
       e.stopPropagation()
+      e.preventDefault()
       if (this.data.pageId) {
-        const event = new CustomEvent('navigateToPage', {
+        window.dispatchEvent(new CustomEvent('navigateToPage', {
           detail: { pageId: this.data.pageId }
-        })
-        window.dispatchEvent(event)
+        }))
       }
-    }
+    })
   }
 
   renderPageSelector() {
     if (!this.wrapper) return
 
+    this.wrapper.contentEditable = 'false'
     this.wrapper.style.cursor = 'default'
 
     const input = document.createElement('input')

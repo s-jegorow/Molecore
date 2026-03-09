@@ -13,12 +13,12 @@ from database import engine, get_db, Base
 from models import Page
 from auth import get_current_user
 
-# Tabellen erstellen beim Start
+# Create tables on startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="nx API")
 
-# CORS für Frontend
+# CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://your-frontend-domain.com"],
@@ -27,7 +27,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# Static files für uploads
+# Static files for uploads
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -36,7 +36,7 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB per file
 MAX_USER_STORAGE = 500 * 1024 * 1024  # 500 MB per user
 
-# Pydantic Schemas für Request/Response
+# Pydantic schemas for request/response
 from pydantic import BaseModel
 
 class PageCreate(BaseModel):
@@ -47,6 +47,9 @@ class PageCreate(BaseModel):
     icon: Optional[str] = None
     header: Optional[str] = None
     order: Optional[int] = 0
+
+# Valid page types
+VALID_PAGE_TYPES = {"home", "favorite", "normal", "template"}
 
 class PageUpdate(BaseModel):
     title: Optional[str] = None
@@ -93,13 +96,13 @@ def get_pages(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Alle Pages des authentifizierten Users laden"""
+    """Get all pages for the authenticated user"""
     user_id = current_user.get("user_id")
     pages = db.query(Page).filter(
         Page.user_id == user_id
     ).order_by(Page.order).all()
 
-    # Wenn User keine Pages hat, erstelle eine Standard-Home-Page
+    # If user has no pages, create a default home page
     if not pages:
         home_page = Page(
             title="Dashboard",
@@ -109,7 +112,7 @@ def get_pages(
                     {
                         "type": "paragraph",
                         "data": {
-                            "text": "Dies ist deine Startseite, die du nach deinen Wünschen gestalten kannst."
+                            "text": "This is your home page. You can customize it however you like."
                         }
                     }
                 ],
@@ -127,7 +130,7 @@ def get_pages(
         db.refresh(home_page)
         pages = [home_page]
 
-    # Content von JSON-String zu dict konvertieren & datetime zu string
+    # Convert content from JSON string to dict & datetime to string
     for page in pages:
         if isinstance(page.content, str):
             page.content = json.loads(page.content)
@@ -143,7 +146,7 @@ def get_page(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Eine einzelne Page laden"""
+    """Get a single page"""
     user_id = current_user.get("user_id")
     page = db.query(Page).filter(
         Page.id == page_id,
@@ -153,7 +156,7 @@ def get_page(
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    # Content von JSON-String zu dict & datetime zu string
+    # Convert content from JSON string to dict & datetime to string
     if isinstance(page.content, str):
         page.content = json.loads(page.content)
     page.created_at = page.created_at.isoformat()
@@ -167,8 +170,25 @@ def create_page(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Neue Page erstellen"""
+    """Create a new page"""
     user_id = current_user.get("user_id")
+
+    # Validate page_type
+    if page_data.page_type and page_data.page_type not in VALID_PAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid page_type. Must be one of: {', '.join(VALID_PAGE_TYPES)}"
+        )
+
+    # Validate parent_id if provided
+    if page_data.parent_id is not None:
+        parent = db.query(Page).filter(
+            Page.id == page_data.parent_id,
+            Page.user_id == user_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=400, detail="Parent page not found")
+
     new_page = Page(
         title=page_data.title,
         content=json.dumps(page_data.content),
@@ -183,7 +203,7 @@ def create_page(
     db.commit()
     db.refresh(new_page)
 
-    # Content zurück zu dict & datetime zu string
+    # Convert content back to dict & datetime to string
     new_page.content = json.loads(new_page.content)
     new_page.created_at = new_page.created_at.isoformat()
     new_page.updated_at = new_page.updated_at.isoformat()
@@ -197,7 +217,7 @@ def update_page(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Page updaten"""
+    """Update a page"""
     user_id = current_user.get("user_id")
     page = db.query(Page).filter(
         Page.id == page_id,
@@ -207,7 +227,28 @@ def update_page(
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    # Nur geänderte Felder updaten
+    # Validate page_type if provided
+    if page_data.page_type is not None:
+        if page_data.page_type not in VALID_PAGE_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid page_type. Must be one of: {', '.join(VALID_PAGE_TYPES)}"
+            )
+
+    # Validate parent_id if provided
+    if page_data.parent_id is not None:
+        # Check if parent exists and belongs to user
+        parent = db.query(Page).filter(
+            Page.id == page_data.parent_id,
+            Page.user_id == user_id
+        ).first()
+        if not parent:
+            raise HTTPException(status_code=400, detail="Parent page not found")
+        # Prevent circular reference
+        if page_data.parent_id == page_id:
+            raise HTTPException(status_code=400, detail="Page cannot be its own parent")
+
+    # Update only changed fields
     if page_data.title is not None:
         page.title = page_data.title
     if page_data.content is not None:
@@ -226,7 +267,7 @@ def update_page(
     db.commit()
     db.refresh(page)
 
-    # Content zurück zu dict & datetime zu string
+    # Convert content back to dict & datetime to string
     page.content = json.loads(page.content)
     page.created_at = page.created_at.isoformat()
     page.updated_at = page.updated_at.isoformat()
@@ -239,7 +280,7 @@ def delete_page(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Page löschen"""
+    """Delete a page"""
     user_id = current_user.get("user_id")
     page = db.query(Page).filter(
         Page.id == page_id,
@@ -249,7 +290,7 @@ def delete_page(
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    # Home Page kann nicht gelöscht werden
+    # Home page cannot be deleted
     if page.page_type == "home":
         raise HTTPException(status_code=400, detail="Cannot delete home page")
 
@@ -398,6 +439,12 @@ def get_storage_usage(current_user: dict = Depends(get_current_user)):
         "percentage": round(percentage, 1)
     }
 
+def extract_filename(url: str) -> str:
+    """Extract just the filename from any URL format (works with absolute or relative URLs)"""
+    if not url:
+        return ""
+    return url.split("/")[-1] if "/" in url else url
+
 @app.post("/api/cleanup-uploads")
 def cleanup_uploads(
     db: Session = Depends(get_db),
@@ -417,14 +464,13 @@ def cleanup_uploads(
 
                 # Check header image
                 if page.header:
-                    # Extract path after /uploads/user_id/
-                    filename = page.header.replace("http://127.0.0.1:8000", "").replace("http://localhost:8000", "").replace("/uploads/", "").replace(f"{user_id}/", "")
+                    filename = extract_filename(page.header)
                     if filename:
                         referenced_files.add(filename)
 
-                # Check icon
-                if page.icon:
-                    filename = page.icon.replace("http://127.0.0.1:8000", "").replace("http://localhost:8000", "").replace("/uploads/", "").replace(f"{user_id}/", "")
+                # Check icon (skip emojis - they don't start with / or http)
+                if page.icon and ("/" in page.icon or page.icon.startswith("http")):
+                    filename = extract_filename(page.icon)
                     if filename:
                         referenced_files.add(filename)
 
@@ -436,19 +482,19 @@ def cleanup_uploads(
                                 # Support both URL formats: data.file.url and data.url
                                 url = block["data"].get("file", {}).get("url", "") or block["data"].get("url", "")
                                 if url:
-                                    filename = url.replace("http://127.0.0.1:8000", "").replace("http://localhost:8000", "").replace("/uploads/", "").replace(f"{user_id}/", "")
+                                    filename = extract_filename(url)
                                     if filename:
                                         referenced_files.add(filename)
                             elif block.get("type") == "audio" and "data" in block:
                                 url = block["data"].get("url", "")
                                 if url:
-                                    filename = url.replace("http://127.0.0.1:8000", "").replace("http://localhost:8000", "").replace("/uploads/", "").replace(f"{user_id}/", "")
+                                    filename = extract_filename(url)
                                     if filename:
                                         referenced_files.add(filename)
                             elif block.get("type") == "file" and "data" in block:
                                 url = block["data"].get("url", "")
                                 if url:
-                                    filename = url.replace("http://127.0.0.1:8000", "").replace("http://localhost:8000", "").replace("/uploads/", "").replace(f"{user_id}/", "")
+                                    filename = extract_filename(url)
                                     if filename:
                                         referenced_files.add(filename)
                         except Exception as e:

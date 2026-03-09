@@ -1,5 +1,6 @@
 import { updatePage, API_URL } from './api'
 import { Modal } from './Modal'
+import { getToken } from './auth'
 
 export async function showIconPicker(
   pageId: number,
@@ -124,8 +125,12 @@ export async function showIconPicker(
         const formData = new FormData()
         formData.append('file', file)
 
+        const token = await getToken()
         const response = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` })
+          },
           body: formData
         })
 

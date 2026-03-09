@@ -1,8 +1,9 @@
 import { getPage, getPages, updatePage, deletePage, API_URL } from './api'
-import { setActivePage } from './ui'
+import { setActivePage, refreshSidebar } from './ui'
 import { appState } from './state'
 import { Modal } from './Modal'
 import { getToken } from './auth'
+import { applyCalloutForeignKeys, initCalloutObserver } from './CalloutBlock'
 
 /**
  * Build breadcrumb navigation showing the path from root to current page
@@ -112,6 +113,9 @@ export async function loadPage(pageId: number) {
       await appState.editor.clear()
       await appState.editor.render(page.content)
 
+      // Re-init callout observer for new page content + apply immediately
+      initCalloutObserver()
+
       // Clear undo history when loading a new page
       if (appState.undoManager) {
         appState.undoManager.clear()
@@ -168,8 +172,10 @@ export async function navigateToHomePage(): Promise<void> {
  */
 async function autoSave() {
   if (!appState.currentPageId || !appState.editor) return
+  if (appState.isSaving) return // Prevent concurrent saves
 
   try {
+    appState.isSaving = true
     await appState.editor.isReady
     const content = await appState.editor.save()
     const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
@@ -178,6 +184,8 @@ async function autoSave() {
     await updatePage(appState.currentPageId, { content, title })
   } catch (error) {
     console.error('Auto-save failed:', error)
+  } finally {
+    appState.isSaving = false
   }
 }
 
@@ -281,8 +289,7 @@ export function setupFavoriteButton(): void {
 
       await updatePage(appState.currentPageId, { page_type: newPageType })
       updateFavoriteButton(newPageType === 'favorite')
-
-      // Reload sidebar to move page between sections
+      await refreshSidebar()
     } catch (error) {
       console.error('Failed to toggle favorite:', error)
     }
@@ -302,10 +309,7 @@ function setupDeleteButton(): void {
 
     try {
       await deletePage(appState.currentPageId)
-
-      // Reload sidebar first
-
-      // Navigate to home page
+      await refreshSidebar()
       await navigateToHomePage()
     } catch (error: any) {
       console.error('Failed to delete page:', error)

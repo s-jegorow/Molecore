@@ -601,6 +601,10 @@ main {
 }
 
 /* ========== EDITORJS STYLES ========== */
+.ce-block {
+  padding: 1px 0;
+}
+
 .ce-block__content,
 .ce-toolbar__content {
   max-width: 100%;
@@ -630,6 +634,44 @@ main {
 .ce-popover__container,
 .ce-toolbar__actions {
   z-index: var(--z-toolbar) !important;
+}
+
+/* Code Block — dark terminal look */
+.ce-code {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ce-code__textarea {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.7 !important;
+  background: #0d0d0d !important;
+  color: #d4d4d4 !important;
+  border: 1px solid #2a2a2a !important;
+  border-radius: 10px !important;
+  padding: 20px !important;
+  tab-size: 2;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+.ce-code__textarea::placeholder {
+  color: #555 !important;
+}
+
+/* Code blocks inside callouts */
+.ce-block[data-callout-color] .ce-code__textarea {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Page blocks — compact spacing between consecutive page links */
+.ce-block:has(.page-block) {
+  padding: 0 !important;
+}
+.ce-block[data-callout-color]:has(.page-block) {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
 }
 
 /* Image Tool */
@@ -1337,6 +1379,124 @@ main {
 
 .alert-modal-btn-error:hover {
   background: var(--color-danger-darker);
+}
+
+/* ========== CALLOUT BLOCK (Notion-style rounded container) ========== */
+
+/* The callout header block — top cap of the visual container */
+.ce-block:has(.callout-block-header) {
+  padding: 0 !important;
+  margin: 0 !important;
+  margin-top: 12px !important;
+}
+
+.ce-block:has(.callout-block-header) .ce-block__content {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: none !important;
+}
+
+/* Colored bar — rounded top corners, click to open settings */
+.callout-block-header {
+  padding: 0;
+  height: 6px;
+  border-radius: 10px 10px 0 0;
+  margin-bottom: 0;
+  position: relative;
+  cursor: pointer;
+  transition: height 0.15s ease;
+}
+
+.ce-block:has(.callout-block-header):hover .callout-block-header {
+  height: 20px;
+}
+
+/* ---- Child blocks inside a callout ---- */
+.ce-block[data-callout-color] {
+  padding: 8px 24px !important;
+  margin: 0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: none;
+  border-bottom: none;
+}
+
+/* First callout child right after header — extra top padding */
+.ce-block:has(.callout-block-header) + .ce-block[data-callout-color] {
+  padding-top: 12px !important;
+}
+
+/* Last callout child — rounded bottom, extra bottom padding, space after */
+.ce-block[data-callout-color]:not(:has(+ .ce-block[data-callout-color])) {
+  border-radius: 0 0 10px 10px;
+  padding-bottom: 16px !important;
+  margin-bottom: 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Color variants ---- */
+.ce-block[data-callout-color="black"] {
+  background: #1e1e1e;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="blue"] {
+  background: #0d3a5c;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="red"] {
+  background: #5c1010;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="orange"] {
+  background: #6b2a0f;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="green"] {
+  background: #1a4d24;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="purple"] {
+  background: #3d2470;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="pink"] {
+  background: #6b1e42;
+  color: #ffffff;
+}
+.ce-block[data-callout-color="lightgray"] {
+  background: #f5f5f5;
+  color: #000000;
+}
+.ce-block[data-callout-color="lightgray"],
+.ce-block[data-callout-color="lightgray"]:not(:has(+ .ce-block[data-callout-color])) {
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Text / content colors inside callouts ---- */
+.ce-block[data-callout-color] .ce-block__content,
+.ce-block[data-callout-color] .ce-paragraph,
+.ce-block[data-callout-color] .ce-header,
+.ce-block[data-callout-color] .page-block {
+  color: inherit !important;
+}
+
+.ce-block[data-callout-color] a {
+  color: #6db3f2;
+}
+
+.ce-block[data-callout-color] code.inline-code {
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+}
+
+/* Page blocks inside callouts — clickable + styled */
+.ce-block[data-callout-color] .page-block {
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.ce-block[data-callout-color] .page-block-icon {
+  opacity: 0.85;
 }
 
 /* ========== TOGGLE BLOCK ========== */
