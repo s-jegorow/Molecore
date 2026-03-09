@@ -24,28 +24,12 @@ A minimalist, self-hosted block-based note-taking application with Keycloak auth
 ## Tech Stack
 
 **Frontend:**
-- TypeScript
+- TypeScript + EditorJS + Keycloak-js
 - Vite
-- EditorJS
-- Keycloak-js
 
 **Backend:**
-- Python 3.12+
-- FastAPI
-- SQLAlchemy
+- Python + FastAPI + SQLAlchemy + python-jose (JWT validation)
 - PostgreSQL
-- python-jose (JWT validation)
-
-**Infrastructure:**
-- Docker & Docker Compose
-- Nginx (frontend reverse proxy)
-- PostgreSQL 15
-
-## Prerequisites
-
-- Docker and Docker Compose
-- A running Keycloak instance
-- Domain with SSL (recommended for production)
 
 ## Installation
 
@@ -125,7 +109,8 @@ Each user has an isolated directory for their uploads.
 - A few security fixes (XSS protection..)
 - probably a new main navigation similar to the mobile version
 - better handling of deleted files
-- minor fixes (auth-header for icon upload needs to be fixed and session expiration needs to be checked)
+- minor fixes (auth-header for icon upload needs to be fixed)
+- MacOS App with offline feature (probably via sync down and sync up button to avoid sync problems)
 
 
 ## License
