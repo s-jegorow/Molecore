@@ -29,25 +29,34 @@ async function buildBreadcrumbs(pageId: number) {
     }
 
     // Render breadcrumbs
-    breadcrumbsContainer.innerHTML = path
-      .map((item, index) => {
-        const isLast = index === path.length - 1
-        if (isLast) {
-          return `<span class="breadcrumb-current">${item.title}</span>`
-        }
-        return `<a href="#" class="breadcrumb-link" data-page-id="${item.id}">${item.title}</a>`
-      })
-      .join('<span class="breadcrumb-separator">/</span>')
+    breadcrumbsContainer.innerHTML = ''
+    path.forEach((item, index) => {
+      const isLast = index === path.length - 1
 
-    // Add click handlers for breadcrumb links
-    breadcrumbsContainer.querySelectorAll('.breadcrumb-link').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault()
-        const targetPageId = parseInt((e.target as HTMLElement).dataset.pageId || '0')
-        if (targetPageId) {
-          loadPage(targetPageId)
-        }
-      })
+      if (index > 0) {
+        const sep = document.createElement('span')
+        sep.className = 'breadcrumb-separator'
+        sep.textContent = '/'
+        breadcrumbsContainer.appendChild(sep)
+      }
+
+      if (isLast) {
+        const span = document.createElement('span')
+        span.className = 'breadcrumb-current'
+        span.textContent = item.title
+        breadcrumbsContainer.appendChild(span)
+      } else {
+        const link = document.createElement('a')
+        link.href = '#'
+        link.className = 'breadcrumb-link'
+        link.dataset.pageId = String(item.id)
+        link.textContent = item.title
+        link.addEventListener('click', (e) => {
+          e.preventDefault()
+          loadPage(item.id)
+        })
+        breadcrumbsContainer.appendChild(link)
+      }
     })
   } catch (error) {
     console.error('Failed to build breadcrumbs:', error)

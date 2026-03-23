@@ -20,9 +20,10 @@ def get_jwks() -> dict:
         response.raise_for_status()
         return response.json()
     except Exception as e:
+        print(f"JWKS fetch error: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not fetch Keycloak JWKS: {str(e)}"
+            detail="Authentication service unavailable"
         )
 
 def get_public_key_for_token(token: str) -> str:
@@ -52,9 +53,10 @@ def get_public_key_for_token(token: str) -> str:
         return rsa_key.to_pem().decode('utf-8')
 
     except Exception as e:
+        print(f"Public key error: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not get public key: {str(e)}"
+            detail="Authentication service unavailable"
         )
 
 
@@ -74,6 +76,11 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
                 "verify_exp": True,
             }
         )
+
+        # Verify the token was issued for our client (Keycloak uses azp)
+        azp = payload.get("azp")
+        if azp != CLIENT_ID:
+            raise JWTError("Token not issued for this client")
 
         return payload
 

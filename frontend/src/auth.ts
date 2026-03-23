@@ -73,18 +73,8 @@ export function getUserInfo() {
 
 // Initialize auth UI event listeners
 export function initAuthUI(): void {
-  const loginBtn = document.getElementById('login-btn')
-  const logoutBtn = document.getElementById('logout-btn')
   const mobileUserBtn = document.getElementById('mobile-user-btn')
   const settingsLogoutBtn = document.getElementById('settings-logout-btn')
-
-  loginBtn?.addEventListener('click', () => {
-    login()
-  })
-
-  logoutBtn?.addEventListener('click', () => {
-    logout()
-  })
 
   settingsLogoutBtn?.addEventListener('click', () => {
     const settingsModal = document.getElementById('settings-modal')
@@ -92,7 +82,7 @@ export function initAuthUI(): void {
     logout()
   })
 
-  // Mobile user button: login if not authenticated, open settings if authenticated
+  // User button: login if not authenticated, open settings if authenticated
   mobileUserBtn?.addEventListener('click', () => {
     if (isAuthenticated()) {
       openSettingsModal()
@@ -113,25 +103,15 @@ export function initAuthUI(): void {
 
 // Update UI based on authentication state
 export function updateAuthUI(authenticated: boolean): void {
-  const loginBtn = document.getElementById('login-btn')
-  const logoutBtn = document.getElementById('logout-btn')
-  const userGreeting = document.getElementById('user-greeting')
   const mobileUserBtn = document.getElementById('mobile-user-btn')
-  const newPageBtn = document.getElementById('new-page-btn')
-  const pagesSection = document.getElementById('pages-section')
-  const favoritesSection = document.getElementById('favorites-section')
-  const searchContainer = document.getElementById('search-container')
-  const settingsBtn = document.getElementById('settings-btn')
   const profileUsername = document.getElementById('profile-username')
   const welcomeScreen = document.getElementById('welcome-screen')
   const appContent = document.getElementById('app-content')
 
   if (authenticated) {
-    // Hide welcome screen, show app
     if (welcomeScreen) welcomeScreen.style.display = 'none'
     if (appContent) appContent.classList.add('active')
     const userInfo = getUserInfo()
-    // Try to get full name, fallback to name, then username
     let displayName = 'User'
     if (userInfo?.given_name && userInfo?.family_name) {
       displayName = `${userInfo.given_name} ${userInfo.family_name}`
@@ -141,27 +121,11 @@ export function updateAuthUI(authenticated: boolean): void {
       displayName = userInfo.preferred_username
     }
 
-    if (userGreeting) userGreeting.textContent = `Hello ${displayName}`
     if (profileUsername) profileUsername.textContent = displayName
-    if (loginBtn) loginBtn.style.display = 'none'
-    if (logoutBtn) logoutBtn.style.display = 'block'
     if (mobileUserBtn) mobileUserBtn.classList.add('active')
-    if (newPageBtn) newPageBtn.style.display = 'block'
-    if (pagesSection) pagesSection.style.display = 'block'
-    if (favoritesSection) favoritesSection.style.display = 'block'
-    if (searchContainer) searchContainer.style.display = 'block'
-    if (settingsBtn) settingsBtn.style.display = 'block'
   } else {
-    if (userGreeting) userGreeting.textContent = 'Hello Guest'
     if (profileUsername) profileUsername.textContent = 'Guest'
-    if (loginBtn) loginBtn.style.display = 'block'
-    if (logoutBtn) logoutBtn.style.display = 'none'
     if (mobileUserBtn) mobileUserBtn.classList.remove('active')
-    if (newPageBtn) newPageBtn.style.display = 'none'
-    if (pagesSection) pagesSection.style.display = 'none'
-    if (favoritesSection) favoritesSection.style.display = 'none'
-    if (searchContainer) searchContainer.style.display = 'none'
-    if (settingsBtn) settingsBtn.style.display = 'none'
   }
 }
 

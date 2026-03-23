@@ -4,7 +4,7 @@ import { initEditor, performUndo, performRedo, canUndo, canRedo } from './editor
 import { loadPage, navigateToHomePage, scheduleAutoSave, setupHeaderUpload, setupPageTitleHandler, setupFavoriteButton, setupPageEventListeners } from './pages'
 import { initProfileModal, setupProfileButton } from './profile'
 import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
-import { initDesktopPageList, initMobilePageList, initDarkMode, setupLogoClick } from './ui'
+import { initPageList, initDarkMode } from './ui'
 import { Modal } from './Modal'
 import { login } from './auth'
 
@@ -122,9 +122,8 @@ async function init(): Promise<void> {
   // Initialize editor
   initEditor(scheduleAutoSave, updateUndoRedoButtons)
 
-  // Initialize page lists
-  initDesktopPageList(loadPage)
-  initMobilePageList(loadPage)
+  // Initialize page list
+  initPageList(loadPage)
 
   // Initialize profile modal
   initProfileModal()
@@ -136,8 +135,6 @@ async function init(): Promise<void> {
   setupFavoriteButton()
   setupPageEventListeners()
   setupProfileButton()
-  setupLogoClick(navigateToHomePage)
-
   // Load home page
   await navigateToHomePage()
 }

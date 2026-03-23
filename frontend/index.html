@@ -9,42 +9,6 @@
   </head>
 <body>
   <div id="app">
-    <aside id="sidebar">
-      <div class="sidebar-header">
-        <div class="logo" style="cursor: pointer; display: flex; justify-content: center;">
-          <img src="/molecore-logo-light.png" alt="molecore" style="width: 140px; height: auto;">
-        </div>
-   </div>
-
-     <div id="search-container">
-       <input type="text" id="search-input" placeholder="🔍 Search pages...">
-       <div id="search-results"></div>
-     </div>
-
-      <div id="favorites-section">
-        <div class="section-label">Favorites</div>
-        <div id="favorites-list"></div>
-      </div>
-      <div id="pages-section">
-        <div class="section-label">Pages</div>
-        <div id="pages-list"></div>
-      </div>
-
-      <div class="sidebar-footer">
-        <button id="new-page-btn">+ New Page</button>
-        <div class="user-block">
-          <div class="user-greeting" id="user-greeting">Hello Guest</div>
-          <div class="user-divider"></div>
-          <div class="user-actions">
-            <button id="login-btn">Login</button>
-            <button id="logout-btn" style="display: none;">Logout</button>
-            <button id="darkmode-btn">☾</button>
-            <button id="settings-btn">👤</button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
     <div id="content">
       <div id="welcome-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center;">
         <h1 style="font-size: 3rem; margin-bottom: 1rem;">Welcome to molecore</h1>
@@ -123,7 +87,7 @@
     <button id="mobile-darkmode-btn" class="mobile-menu-btn">☾</button>
   </nav>
 
-  <!-- Mobile Slide-in Overlay -->
+  <!-- Slide-in Overlay -->
   <div id="mobile-overlay" class="mobile-overlay">
     <div id="mobile-slide-panel" class="mobile-slide-panel">
       <div class="mobile-panel-header">
@@ -131,6 +95,10 @@
         <button id="mobile-close-btn" class="mobile-close-btn">&times;</button>
       </div>
       <div class="mobile-panel-content">
+        <div id="search-container">
+          <input type="text" id="search-input" placeholder="🔍 Search pages...">
+          <div id="search-results"></div>
+        </div>
         <div id="mobile-favorites-section">
           <div class="section-label">Favorites</div>
           <div id="mobile-favorites-list"></div>

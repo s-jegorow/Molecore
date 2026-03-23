@@ -66,6 +66,16 @@ export default class EmbedBlock {
       const iframeSrcMatch = value.match(/src=["']([^"']+)["']/)
       const extractedUrl = iframeSrcMatch ? iframeSrcMatch[1] : value
 
+      // Only allow http/https URLs
+      try {
+        const parsed = new URL(extractedUrl)
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          return
+        }
+      } catch {
+        return
+      }
+
       this.data.url = extractedUrl
       this._createEmbed()
     }
@@ -87,6 +97,14 @@ export default class EmbedBlock {
 
   private _createEmbed() {
     if (!this.wrapper || !this.data.url) return
+
+    // Validate URL protocol
+    try {
+      const parsed = new URL(this.data.url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+    } catch {
+      return
+    }
 
     this.wrapper.innerHTML = ''
     this.wrapper.classList.add('embed-wrapper')

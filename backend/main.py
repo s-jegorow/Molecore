@@ -37,27 +37,27 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB per file
 MAX_USER_STORAGE = 500 * 1024 * 1024  # 500 MB per user
 
 # Pydantic schemas for request/response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class PageCreate(BaseModel):
-    title: str
+    title: str = Field(..., max_length=500)
     content: dict
     parent_id: Optional[int] = None
     page_type: Optional[str] = "normal"
-    icon: Optional[str] = None
-    header: Optional[str] = None
+    icon: Optional[str] = Field(None, max_length=200)
+    header: Optional[str] = Field(None, max_length=500)
     order: Optional[int] = 0
 
 # Valid page types
 VALID_PAGE_TYPES = {"home", "favorite", "normal", "template"}
 
 class PageUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=500)
     content: Optional[dict] = None
     parent_id: Optional[int] = None
     page_type: Optional[str] = None
-    icon: Optional[str] = None
-    header: Optional[str] = None
+    icon: Optional[str] = Field(None, max_length=200)
+    header: Optional[str] = Field(None, max_length=500)
     order: Optional[int] = None
 
 class PageResponse(BaseModel):
@@ -133,7 +133,10 @@ def get_pages(
     # Convert content from JSON string to dict & datetime to string
     for page in pages:
         if isinstance(page.content, str):
-            page.content = json.loads(page.content)
+            try:
+                page.content = json.loads(page.content)
+            except (json.JSONDecodeError, TypeError):
+                page.content = {"blocks": []}
         page.created_at = page.created_at.isoformat()
         page.updated_at = page.updated_at.isoformat()
 
@@ -158,7 +161,10 @@ def get_page(
 
     # Convert content from JSON string to dict & datetime to string
     if isinstance(page.content, str):
-        page.content = json.loads(page.content)
+        try:
+            page.content = json.loads(page.content)
+        except (json.JSONDecodeError, TypeError):
+            page.content = {"blocks": []}
     page.created_at = page.created_at.isoformat()
     page.updated_at = page.updated_at.isoformat()
 
@@ -204,7 +210,10 @@ def create_page(
     db.refresh(new_page)
 
     # Convert content back to dict & datetime to string
-    new_page.content = json.loads(new_page.content)
+    try:
+        new_page.content = json.loads(new_page.content)
+    except (json.JSONDecodeError, TypeError):
+        new_page.content = {"blocks": []}
     new_page.created_at = new_page.created_at.isoformat()
     new_page.updated_at = new_page.updated_at.isoformat()
 
@@ -268,7 +277,10 @@ def update_page(
     db.refresh(page)
 
     # Convert content back to dict & datetime to string
-    page.content = json.loads(page.content)
+    try:
+        page.content = json.loads(page.content)
+    except (json.JSONDecodeError, TypeError):
+        page.content = {"blocks": []}
     page.created_at = page.created_at.isoformat()
     page.updated_at = page.updated_at.isoformat()
 
@@ -373,7 +385,8 @@ async def upload_file(
 
     # Generate filename
     timestamp = int(time.time())
-    safe_filename = uploaded_file.filename.replace(" ", "_") if uploaded_file.filename else "upload"
+    raw_filename = uploaded_file.filename or "upload"
+    safe_filename = os.path.basename(raw_filename).replace(" ", "_")
 
     # Determine prefix based on upload_type
     if upload_type == "header":
@@ -541,4 +554,4 @@ def cleanup_uploads(
         }
     except Exception as e:
         print(f"Cleanup error: {e}")
-        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Cleanup failed")
