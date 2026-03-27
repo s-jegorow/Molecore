@@ -1,4 +1,5 @@
 import { getPages, createPage, updatePage } from './api'
+import { appState } from './state'
 import type { Page, PageSelectCallback } from './types'
 import { showIconPicker } from './iconPicker'
 
@@ -147,9 +148,9 @@ export function initDarkMode() {
   let isDarkMode = savedMode !== null ? savedMode === 'true' : true
 
   function updateLogo() {
-    const logoImg = document.querySelector('.mobile-menu-logo img') as HTMLImageElement
-    if (logoImg) {
-      logoImg.src = isDarkMode ? '/molecore-logo-dark.png' : '/molecore-logo-light.png'
+    const landingLogo = document.getElementById('landing-logo') as HTMLImageElement
+    if (landingLogo) {
+      landingLogo.src = isDarkMode ? '/molecore-logo-dark.png' : '/molecore-logo-light.png'
     }
   }
 
@@ -431,4 +432,44 @@ function closeMobileMenu() {
   if (overlay) {
     overlay.classList.remove('active')
   }
+}
+
+// Read Mode
+export function initReadMode() {
+  const readModeBtn = document.getElementById('readmode-btn')
+  let isReadMode = localStorage.getItem('readMode') === 'true'
+
+  function applyReadMode() {
+    document.body.classList.toggle('read-mode', isReadMode)
+    if (readModeBtn) {
+      readModeBtn.classList.toggle('active', isReadMode)
+      readModeBtn.title = isReadMode ? 'Edit Mode (⌘⇧R)' : 'Read Mode (⌘⇧R)'
+    }
+
+    if (appState.editor) {
+      appState.editor.readOnly.toggle(isReadMode)
+    }
+  }
+
+  function toggleReadMode() {
+    isReadMode = !isReadMode
+    localStorage.setItem('readMode', String(isReadMode))
+    applyReadMode()
+  }
+
+  // Apply on init
+  if (isReadMode) {
+    // Delay to let editor initialize first
+    setTimeout(applyReadMode, 300)
+  }
+
+  readModeBtn?.addEventListener('click', toggleReadMode)
+
+  // Keyboard shortcut: Cmd+Shift+R
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'r') {
+      e.preventDefault()
+      toggleReadMode()
+    }
+  })
 }

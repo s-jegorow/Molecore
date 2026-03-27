@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
 from database import engine, get_db, Base
-from models import Page
+from models import Page, UserPreferences
 from auth import get_current_user
 
 # Create tables on startup
@@ -49,7 +49,7 @@ class PageCreate(BaseModel):
     order: Optional[int] = 0
 
 # Valid page types
-VALID_PAGE_TYPES = {"home", "favorite", "normal", "template"}
+VALID_PAGE_TYPES = {"home", "favorite", "normal", "template", "notepad"}
 
 class PageUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=500)
@@ -99,7 +99,8 @@ def get_pages(
     """Get all pages for the authenticated user"""
     user_id = current_user.get("user_id")
     pages = db.query(Page).filter(
-        Page.user_id == user_id
+        Page.user_id == user_id,
+        Page.page_type != "notepad"
     ).order_by(Page.order).all()
 
     # If user has no pages, create a default home page
@@ -555,3 +556,92 @@ def cleanup_uploads(
     except Exception as e:
         print(f"Cleanup error: {e}")
         raise HTTPException(status_code=500, detail="Cleanup failed")
+
+
+# User Preferences Endpoints
+
+@app.get("/api/preferences")
+def get_preferences(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get user preferences"""
+    user_id = current_user.get("user_id")
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user_id).first()
+    if not prefs:
+        return {}
+    try:
+        return json.loads(prefs.preferences)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+@app.put("/api/preferences")
+def update_preferences(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Update user preferences"""
+    user_id = current_user.get("user_id")
+    prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user_id).first()
+    if not prefs:
+        prefs = UserPreferences(user_id=user_id, preferences=json.dumps(data))
+        db.add(prefs)
+    else:
+        existing = {}
+        try:
+            existing = json.loads(prefs.preferences)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        existing.update(data)
+        prefs.preferences = json.dumps(existing)
+    db.commit()
+    try:
+        return json.loads(prefs.preferences)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+# Notepad Endpoint
+
+@app.get("/api/notepad", response_model=PageResponse)
+def get_notepad(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get or create the user's notepad page"""
+    user_id = current_user.get("user_id")
+
+    notepad = db.query(Page).filter(
+        Page.user_id == user_id,
+        Page.page_type == "notepad"
+    ).first()
+
+    if not notepad:
+        notepad = Page(
+            title="Notepad",
+            content=json.dumps({
+                "time": int(time.time() * 1000),
+                "blocks": [],
+                "version": "2.28.2"
+            }),
+            parent_id=None,
+            page_type="notepad",
+            icon="📝",
+            order=-1,
+            user_id=user_id
+        )
+        db.add(notepad)
+        db.commit()
+        db.refresh(notepad)
+
+    if isinstance(notepad.content, str):
+        try:
+            notepad.content = json.loads(notepad.content)
+        except (json.JSONDecodeError, TypeError):
+            notepad.content = {"blocks": []}
+    notepad.created_at = notepad.created_at.isoformat()
+    notepad.updated_at = notepad.updated_at.isoformat()
+
+    return notepad

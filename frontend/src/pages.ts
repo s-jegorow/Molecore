@@ -85,13 +85,8 @@ function updateFavoriteButton(isFavorite: boolean) {
   const favoriteBtn = document.getElementById('favorite-btn')
   if (!favoriteBtn) return
 
-  if (isFavorite) {
-    favoriteBtn.classList.add('is-favorite')
-    favoriteBtn.textContent = '★'
-  } else {
-    favoriteBtn.classList.remove('is-favorite')
-    favoriteBtn.textContent = '☆'
-  }
+  favoriteBtn.classList.toggle('is-favorite', isFavorite)
+  favoriteBtn.title = isFavorite ? 'Remove from favorites' : 'Add to favorites'
 }
 
 /**

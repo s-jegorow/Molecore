@@ -95,7 +95,7 @@ export function initAuthUI(): void {
   window.addEventListener('sessionExpired', () => {
     const welcomeScreen = document.getElementById('welcome-screen')
     const appContent = document.getElementById('app-content')
-    if (welcomeScreen) welcomeScreen.style.display = 'flex'
+    if (welcomeScreen) welcomeScreen.style.display = ''
     if (appContent) appContent.classList.remove('active')
     updateAuthUI(false)
   })

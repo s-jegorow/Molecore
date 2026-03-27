@@ -1,6 +1,7 @@
 import { getToken, logout } from './auth'
-import { API_URL } from './api'
+import { API_URL, getPreferences, updatePreferences } from './api'
 import { Modal } from './Modal'
+import { showNotepadTab, hideNotepadTab } from './notepad'
 
 // DOM elements
 let settingsModal: HTMLElement | null = null
@@ -28,6 +29,20 @@ export function initProfileModal(): void {
 
   settingsLogoutBtn?.addEventListener('click', handleLogout)
   cleanupUploadsBtn?.addEventListener('click', handleCleanupUploads)
+
+  // Notepad toggle
+  const notepadToggle = document.getElementById('notepad-toggle') as HTMLInputElement
+  if (notepadToggle) {
+    getPreferences().then(prefs => {
+      notepadToggle.checked = prefs.notepad_enabled ?? false
+      if (notepadToggle.checked) showNotepadTab()
+    })
+    notepadToggle.addEventListener('change', async () => {
+      await updatePreferences({ notepad_enabled: notepadToggle.checked })
+      if (notepadToggle.checked) showNotepadTab()
+      else hideNotepadTab()
+    })
+  }
 }
 
 // Open the profile modal

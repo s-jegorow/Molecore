@@ -14,11 +14,13 @@ import HighlightTool from './HighlightTool'
 import UnderlineTool from './UnderlineTool'
 import StrikethroughTool from './StrikethroughTool'
 import LinkTool from './LinkTool'
+import TooltipTool from './TooltipTool'
 import DragDrop from 'editorjs-drag-drop'
 import PageBlock from './PageBlock'
 import AudioBlock from './AudioBlock'
 import FileBlock from './FileBlock'
 import EmbedBlock from './EmbedBlock'
+import RevealBlock from './RevealBlock'
 import { UndoManager } from './UndoManager'
 import { appState } from './state'
 
@@ -42,17 +44,17 @@ export function initEditor(
     tools: {
       paragraph: {
         class: ParagraphWithBlanks,
-        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
         tunes: ['backgroundColor', 'wrapCallout']
       },
       header: {
         class: Header as any,
-        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
         tunes: ['backgroundColor', 'wrapCallout']
       },
       list: {
         class: List as any,
-        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
         tunes: ['backgroundColor', 'wrapCallout']
       },
       code: {
@@ -65,22 +67,24 @@ export function initEditor(
       },
       toggle: {
         class: CustomToggleBlock as any,
-        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
         tunes: ['backgroundColor', 'wrapCallout']
       },
       callout: {
         class: CalloutBlock as any,
-        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough'],
+        inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
       },
       image: ResizableImage as any,
       audio: AudioBlock as any,
       file: FileBlock as any,
       embed: EmbedBlock as any,
+      reveal: RevealBlock as any,
       link: LinkTool as any,
       highlight: HighlightTool as any,
       color: ColorTool as any,
       underline: UnderlineTool as any,
       strikethrough: StrikethroughTool as any,
+      tooltip: TooltipTool as any,
       page: PageBlock as any,
       backgroundColor: BackgroundColorTune as any,
       wrapCallout: WrapCalloutTune as any,

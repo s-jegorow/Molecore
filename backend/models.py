@@ -3,6 +3,14 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
 
+class UserPreferences(Base):
+    __tablename__ = "user_preferences"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, unique=True, index=True)
+    preferences = Column(Text, default='{}')  # JSON string
+
+
 class Page(Base):
     __tablename__ = "pages"
 

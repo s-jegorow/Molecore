@@ -10,9 +10,37 @@
 <body>
   <div id="app">
     <div id="content">
-      <div id="welcome-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center;">
-        <h1 style="font-size: 3rem; margin-bottom: 1rem;">Welcome to molecore</h1>
-        <p style="font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem;">Please log in to enter your burrow</p>
+      <div id="welcome-screen">
+        <canvas id="gradient-canvas"></canvas>
+        <div class="grain-overlay"></div>
+        <div class="landing-content">
+          <img src="/molecore-logo-dark.png" alt="molecore" class="hero-logo fade-in" id="landing-logo">
+          <div class="hero-text fade-in fade-in-delay-1">
+            <h1>Welcome to Molehole</h1>
+            <p>your personal note space</p>
+          </div>
+          <div class="landing-features fade-in fade-in-delay-2">
+            <div class="feature-card">
+              <h3>Block Editor</h3>
+              <p>Rich text, code, tables, images &amp; audio</p>
+            </div>
+            <div class="feature-card">
+              <h3>Nested Pages</h3>
+              <p>Infinite subpages, clean hierarchy</p>
+            </div>
+            <div class="feature-card">
+              <h3>Dark Mode</h3>
+              <p>Adapts to your system</p>
+            </div>
+            <div class="feature-card">
+              <h3>Self-Hosted</h3>
+              <p>Your data stays yours</p>
+            </div>
+          </div>
+          <div class="cta-section fade-in fade-in-delay-3">
+            <p>Log in to enter this burrow or <a href="https://github.com/s-jegorow/Molecore" target="_blank" rel="noopener">host your own one</a>.</p>
+          </div>
+        </div>
       </div>
 
       <div id="app-content">
@@ -22,10 +50,23 @@
 
         <div id="toolbar">
           <div id="breadcrumbs"></div>
-          <button id="delete-btn">Delete</button>
-          <button id="undo-btn" title="Undo (⌘Z)">↺</button>
-          <button id="redo-btn" title="Redo (⌘⇧Z)">↻</button>
-          <button id="favorite-btn" class="toolbar-action">☆</button>
+          <button id="delete-btn" title="Delete page">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+          <span class="tb-sep"></span>
+          <button id="undo-btn" title="Undo (⌘Z)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+          </button>
+          <button id="redo-btn" title="Redo (⌘⇧Z)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
+          </button>
+          <span class="tb-sep"></span>
+          <button id="favorite-btn" class="toolbar-action" title="Add to favorites">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+          <button id="readmode-btn" class="toolbar-action" title="Read Mode (⌘⇧R)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
         </div>
         <main>
           <div id="editor"></div>
@@ -37,45 +78,70 @@
   <!-- Settings Modal -->
   <div id="settings-modal" class="modal">
     <div class="modal-content">
-      <div class="modal-header">
-        <h2>Profile</h2>
-        <button class="modal-close">&times;</button>
-      </div>
       <div class="modal-body">
-        <!-- Profile Section -->
-        <div class="settings-section" id="profile-section">
-          <h3>Profile</h3>
-          <div class="profile-info">
-            <div class="profile-avatar">👤</div>
-            <div class="profile-details">
-              <span class="profile-username" id="profile-username">User</span>
-            </div>
-          </div>
+        <!-- Greeting -->
+        <div class="profile-greeting">
+          <div class="profile-hello">Hello, <span id="profile-username">User</span></div>
+          <button class="modal-close">&times;</button>
         </div>
 
-        <!-- Storage Section -->
-        <div class="settings-section">
-          <h3>Storage</h3>
-          <div class="storage-info" id="storage-info">
-            <div class="storage-bar-container">
-              <div class="storage-bar" id="storage-bar"></div>
+        <div class="settings-body">
+          <!-- Storage Section -->
+          <div class="settings-section">
+            <div class="storage-info" id="storage-info">
+              <div class="storage-bar-container">
+                <div class="storage-bar" id="storage-bar"></div>
+              </div>
+              <p class="storage-text" id="storage-text">Loading...</p>
             </div>
-            <p class="storage-text" id="storage-text">Loading...</p>
+            <button id="cleanup-uploads-btn" class="settings-action-btn">
+              Clean Up Unused Files
+            </button>
+            <p class="settings-help">Remove uploaded files no longer used in any page.</p>
           </div>
-          <button id="cleanup-uploads-btn" class="settings-action-btn">
-            🗑️ Clean Up Unused Files
-          </button>
-          <p class="settings-help">Remove uploaded files that are no longer used in any page.</p>
-        </div>
 
-        <!-- Logout Section -->
-        <div class="settings-section">
-          <button id="settings-logout-btn" class="settings-action-btn settings-logout-btn">
-            Logout
-          </button>
+          <!-- Notepad Section -->
+          <div class="settings-section">
+            <label class="settings-toggle">
+              <span>Notepad</span>
+              <input type="checkbox" id="notepad-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <p class="settings-help">Show a quick notepad tab on the side.</p>
+          </div>
+
+          <!-- Grain Section -->
+          <div class="settings-section">
+            <label class="settings-toggle">
+              <span>Grain texture</span>
+              <input type="checkbox" id="grain-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <p class="settings-help">Apply a subtle film grain to the background.</p>
+          </div>
+
+          <!-- Sign out -->
+          <div class="settings-section">
+            <button id="settings-logout-btn" class="settings-logout-btn">
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- App grain overlay (toggled via preference) -->
+  <div class="app-grain"></div>
+
+  <!-- Notepad -->
+  <div id="notepad-tab" style="display: none;">📝</div>
+  <div id="notepad-panel">
+    <div class="notepad-header">
+      <span>Notepad</span>
+      <button id="notepad-close">&times;</button>
+    </div>
+    <textarea id="notepad-textarea" placeholder="Quick notes..."></textarea>
   </div>
 
   <!-- Mobile Bottom Menu -->
@@ -113,6 +179,121 @@
   </div>
 
   <script type="module" src="/src/main.ts"></script>
+  <script>
+    (function() {
+      const canvas = document.getElementById('gradient-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let animId = null;
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const darkColors = [
+        [130, 55, 5], [150, 65, 8],
+        [15, 40, 80], [10, 30, 70], [20, 50, 100],
+        [3, 3, 5], [2, 2, 4],
+      ];
+      const lightColors = [
+        [70, 130, 180], [50, 110, 170],
+        [200, 130, 40], [180, 110, 30], [220, 155, 55],
+        [160, 165, 180], [150, 155, 172],
+      ];
+
+      const blobs = [
+        { x: 0.25, y: 0.3, r: 0.9, color: [0,0,0], target: [0,0,0], vx: 0.025, vy: 0.018 },
+        { x: 0.65, y: 0.25, r: 0.85, color: [0,0,0], target: [0,0,0], vx: -0.02, vy: 0.022 },
+        { x: 0.1, y: 0.6, r: 0.8, color: [0,0,0], target: [0,0,0], vx: 0.022, vy: -0.016 },
+        { x: 0.85, y: 0.4, r: 0.75, color: [0,0,0], target: [0,0,0], vx: -0.019, vy: 0.017 },
+        { x: 0.6, y: 0.85, r: 0.7, color: [0,0,0], target: [0,0,0], vx: -0.015, vy: -0.022 },
+        { x: 0.4, y: 0.5, r: 0.7, color: [0,0,0], target: [0,0,0], vx: 0.012, vy: 0.01 },
+        { x: 0.8, y: 0.8, r: 0.6, color: [0,0,0], target: [0,0,0], vx: -0.014, vy: -0.012 },
+      ];
+
+      let bgColor = [5, 5, 8];
+      let bgTarget = [5, 5, 8];
+
+      function applyPalette(palette, bg) {
+        for (let i = 0; i < blobs.length; i++) {
+          blobs[i].target = [...palette[i]];
+        }
+        bgTarget = bg;
+      }
+
+      function isDark() {
+        const saved = localStorage.getItem('darkMode');
+        if (saved !== null) return saved === 'true';
+        return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+
+      function updatePalette() {
+        const ws = document.getElementById('welcome-screen');
+        if (isDark()) {
+          applyPalette(darkColors, [5, 5, 8]);
+          if (ws) ws.classList.remove('light-landing');
+        } else {
+          applyPalette(lightColors, [240, 240, 245]);
+          if (ws) ws.classList.add('light-landing');
+        }
+      }
+
+      // Init colors immediately
+      updatePalette();
+      for (let i = 0; i < blobs.length; i++) {
+        blobs[i].color = [...blobs[i].target];
+      }
+      bgColor = [...bgTarget];
+
+      // Watch for dark mode changes
+      const observer = new MutationObserver(updatePalette);
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+      let time = 0;
+
+      function draw() {
+        const ws = document.getElementById('welcome-screen');
+        if (!ws || ws.style.display === 'none') { animId = null; return; }
+        time += 0.005;
+
+        // Smooth color transition
+        for (const blob of blobs) {
+          for (let i = 0; i < 3; i++) {
+            blob.color[i] += (blob.target[i] - blob.color[i]) * 0.02;
+          }
+        }
+        for (let i = 0; i < 3; i++) {
+          bgColor[i] += (bgTarget[i] - bgColor[i]) * 0.02;
+        }
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.fillStyle = `rgb(${bgColor[0]|0}, ${bgColor[1]|0}, ${bgColor[2]|0})`;
+        ctx.fillRect(0, 0, w, h);
+        for (const blob of blobs) {
+          const bx = (blob.x + Math.sin(time * blob.vx * 60) * 0.15) * w;
+          const by = (blob.y + Math.cos(time * blob.vy * 60) * 0.12) * h;
+          const br = blob.r * Math.max(w, h);
+          const grad = ctx.createRadialGradient(bx, by, 0, bx, by, br);
+          const [r, g, b] = blob.color;
+          grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.55)`);
+          grad.addColorStop(0.2, `rgba(${r}, ${g}, ${b}, 0.35)`);
+          grad.addColorStop(0.45, `rgba(${r}, ${g}, ${b}, 0.18)`);
+          grad.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.06)`);
+          grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+          ctx.globalCompositeOperation = isDark() ? 'screen' : 'multiply';
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        animId = requestAnimationFrame(draw);
+      }
+
+      draw();
+    })();
+  </script>
 </body>
 
 </html>

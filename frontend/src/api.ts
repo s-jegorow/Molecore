@@ -75,3 +75,31 @@ export async function deletePage(id: number): Promise<void> {
   })
   if (!response.ok) throw new Error('Failed to delete page')
 }
+
+// Notepad laden/erstellen
+export async function getNotepad(): Promise<Page> {
+  const response = await fetch(`${API_URL}/api/notepad`, {
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error('Failed to fetch notepad')
+  return response.json()
+}
+
+// User Preferences
+export async function getPreferences(): Promise<Record<string, any>> {
+  const response = await fetch(`${API_URL}/api/preferences`, {
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error('Failed to fetch preferences')
+  return response.json()
+}
+
+export async function updatePreferences(data: Record<string, any>): Promise<Record<string, any>> {
+  const response = await fetch(`${API_URL}/api/preferences`, {
+    method: 'PUT',
+    headers: await getAuthHeaders(),
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) throw new Error('Failed to update preferences')
+  return response.json()
+}

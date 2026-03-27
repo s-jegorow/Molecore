@@ -4,7 +4,8 @@ import { initEditor, performUndo, performRedo, canUndo, canRedo } from './editor
 import { loadPage, navigateToHomePage, scheduleAutoSave, setupHeaderUpload, setupPageTitleHandler, setupFavoriteButton, setupPageEventListeners } from './pages'
 import { initProfileModal, setupProfileButton } from './profile'
 import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
-import { initPageList, initDarkMode } from './ui'
+import { initPageList, initDarkMode, initReadMode } from './ui'
+import { initNotepad, showNotepadTab, hideNotepadTab } from './notepad'
 import { Modal } from './Modal'
 import { login } from './auth'
 
@@ -130,11 +131,14 @@ async function init(): Promise<void> {
 
   // Setup buttons and handlers
   setupUndoRedo()
+  initReadMode()
   setupHeaderUpload()
   setupPageTitleHandler()
   setupFavoriteButton()
   setupPageEventListeners()
   setupProfileButton()
+  // Initialize notepad
+  initNotepad()
   // Load home page
   await navigateToHomePage()
 }
