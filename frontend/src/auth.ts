@@ -1,11 +1,10 @@
 import Keycloak from 'keycloak-js'
 import { API_URL } from './api'
 
-// Keycloak configuration - hardcoded for production
 const keycloakConfig = {
-  url: 'https://keycloak.sonic-reducer.de',
-  realm: 'Nx',
-  clientId: 'nx-webapp',
+  url: import.meta.env.VITE_KEYCLOAK_URL as string,
+  realm: import.meta.env.VITE_KEYCLOAK_REALM as string,
+  clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID as string,
 }
 
 const keycloak = new Keycloak(keycloakConfig)

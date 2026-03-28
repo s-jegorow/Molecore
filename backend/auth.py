@@ -2,12 +2,13 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import httpx
+import os
 import time as _time
 from typing import Optional, Dict
 
-KEYCLOAK_URL = "https://keycloak.sonic-reducer.de"
-REALM = "Nx"
-CLIENT_ID = "nx-webapp"
+KEYCLOAK_URL = os.environ["KEYCLOAK_SERVER_URL"]
+REALM = os.environ["KEYCLOAK_REALM"]
+CLIENT_ID = os.environ["KEYCLOAK_CLIENT_ID"]
 
 security = HTTPBearer()
 

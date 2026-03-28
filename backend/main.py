@@ -19,7 +19,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="nx API")
 
 # CORS for frontend
-_cors_origin = os.getenv("CORS_ORIGIN", "https://molecore.sonic-reducer.de")
+_cors_origin = os.environ["CORS_ORIGIN"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[_cors_origin],
