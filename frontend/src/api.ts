@@ -85,6 +85,60 @@ export async function getNotepad(): Promise<Page> {
   return response.json()
 }
 
+// Todo laden/erstellen
+export async function getTodo(): Promise<Page> {
+  const response = await fetch(`${API_URL}/api/todo`, {
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error('Failed to fetch todo')
+  return response.json()
+}
+
+// Calendar
+export interface CalendarEvent {
+  id: number
+  date: string
+  title: string
+  time: string | null
+  color: string | null
+}
+
+export async function getCalendarEvents(year: number, month: number): Promise<CalendarEvent[]> {
+  const response = await fetch(`${API_URL}/api/calendar?year=${year}&month=${month}`, {
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error('Failed to fetch calendar events')
+  return response.json()
+}
+
+export async function createCalendarEvent(data: { date: string; title: string; time?: string; color?: string }): Promise<CalendarEvent> {
+  const response = await fetch(`${API_URL}/api/calendar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...await getAuthHeaders() },
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) throw new Error('Failed to create calendar event')
+  return response.json()
+}
+
+export async function updateCalendarEvent(id: number, data: { title?: string; time?: string; color?: string }): Promise<CalendarEvent> {
+  const response = await fetch(`${API_URL}/api/calendar/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...await getAuthHeaders() },
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) throw new Error('Failed to update calendar event')
+  return response.json()
+}
+
+export async function deleteCalendarEvent(id: number): Promise<void> {
+  const response = await fetch(`${API_URL}/api/calendar/${id}`, {
+    method: 'DELETE',
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error('Failed to delete calendar event')
+}
+
 // User Preferences
 export async function getPreferences(): Promise<Record<string, any>> {
   const response = await fetch(`${API_URL}/api/preferences`, {

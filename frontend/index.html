@@ -81,47 +81,53 @@
       <div class="modal-body">
         <!-- Greeting -->
         <div class="profile-greeting">
-          <div class="profile-hello">Hello, <span id="profile-username">User</span></div>
+          <div class="profile-hello">Hello <span id="profile-username">User</span></div>
           <button class="modal-close">&times;</button>
         </div>
 
         <div class="settings-body">
           <!-- Storage Section -->
           <div class="settings-section">
-            <div class="storage-info" id="storage-info">
+            <div class="storage-row">
               <div class="storage-bar-container">
                 <div class="storage-bar" id="storage-bar"></div>
               </div>
-              <p class="storage-text" id="storage-text">Loading...</p>
+              <button id="cleanup-uploads-btn" class="settings-action-btn" title="Remove uploaded files no longer used in any page.">Clean up</button>
             </div>
-            <button id="cleanup-uploads-btn" class="settings-action-btn">
-              Clean Up Unused Files
-            </button>
-            <p class="settings-help">Remove uploaded files no longer used in any page.</p>
+            <p class="storage-text" id="storage-text">Loading...</p>
           </div>
 
-          <!-- Notepad Section -->
-          <div class="settings-section">
+          <!-- Toggles -->
+          <div class="settings-toggles">
             <label class="settings-toggle">
-              <span>Notepad</span>
+              <span data-tooltip="Show a quick notepad tab on the side.">Notepad</span>
               <input type="checkbox" id="notepad-toggle">
               <span class="toggle-slider"></span>
             </label>
-            <p class="settings-help">Show a quick notepad tab on the side.</p>
-          </div>
-
-          <!-- Grain Section -->
-          <div class="settings-section">
             <label class="settings-toggle">
-              <span>Grain texture</span>
+              <span data-tooltip="Show a calendar tab on the side.">Calendar</span>
+              <input type="checkbox" id="calendar-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="settings-toggle">
+              <span data-tooltip="Show a todo list tab on the side.">Todos</span>
+              <input type="checkbox" id="todo-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="settings-toggle">
+              <span data-tooltip="Show a focus timer tab on the side.">Focus Timer</span>
+              <input type="checkbox" id="timer-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <label class="settings-toggle">
+              <span data-tooltip="Apply a subtle film grain to the background.">Grain texture</span>
               <input type="checkbox" id="grain-toggle">
               <span class="toggle-slider"></span>
             </label>
-            <p class="settings-help">Apply a subtle film grain to the background.</p>
           </div>
 
           <!-- Sign out -->
-          <div class="settings-section">
+          <div class="settings-section settings-section--last">
             <button id="settings-logout-btn" class="settings-logout-btn">
               Sign out
             </button>
@@ -133,6 +139,109 @@
 
   <!-- App grain overlay (toggled via preference) -->
   <div class="app-grain"></div>
+
+  <!-- Kalender -->
+  <div id="calendar-tab" style="display: none;">📅</div>
+  <div id="calendar-panel">
+    <div class="calendar-header">
+      <span>Calendar</span>
+      <button id="calendar-close">&times;</button>
+    </div>
+    <div id="calendar-content"></div>
+  </div>
+
+  <!-- Todos -->
+  <div id="todo-tab" style="display: none;">✅</div>
+  <div id="todo-panel">
+    <div class="todo-header">
+      <span>Todos</span>
+      <span id="todo-progress" class="todo-progress" style="display: none;"></span>
+      <button id="todo-close">&times;</button>
+    </div>
+    <ul id="todo-list" class="todo-list"></ul>
+    <div class="todo-add">
+      <input type="text" id="todo-input" placeholder="Add a todo...">
+      <button id="todo-add-btn">+</button>
+    </div>
+    <div class="todo-footer">
+      <label class="todo-setting-row">
+        <span>Show progress</span>
+        <label class="settings-toggle timer-toggle-compact">
+          <input type="checkbox" id="todo-progress-toggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </label>
+    </div>
+  </div>
+
+  <!-- Focus Timer -->
+  <div id="timer-tab" style="display: none;">⏱</div>
+  <div id="timer-panel">
+    <div class="timer-header">
+      <span>Focus Timer</span>
+      <button id="timer-close">&times;</button>
+    </div>
+    <div class="timer-body">
+      <div class="timer-mode-toggle">
+        <button id="timer-mode-single" class="timer-mode-btn active">Single</button>
+        <button id="timer-mode-cycle" class="timer-mode-btn">Cycle</button>
+      </div>
+      <div id="timer-session-label" class="timer-session-label">Focus</div>
+      <div id="timer-display" class="timer-display">25:00</div>
+      <div id="timer-dots" class="timer-dots"></div>
+      <div class="timer-controls">
+        <button id="timer-start-btn" class="timer-btn timer-btn-primary">Start</button>
+        <button id="timer-reset-btn" class="timer-btn timer-btn-secondary">Reset</button>
+      </div>
+      <div class="timer-settings">
+        <div class="timer-setting-row">
+          <label>Focus</label>
+          <div class="timer-setting-input">
+            <input type="number" id="timer-focus-mins" value="25" min="1" max="120"> min
+          </div>
+        </div>
+        <div id="timer-short-break-row" class="timer-setting-row" style="display: none;">
+          <label>Short break</label>
+          <div class="timer-setting-input">
+            <input type="number" id="timer-short-break-mins" value="5" min="1" max="60"> min
+          </div>
+        </div>
+        <div id="timer-long-break-row" class="timer-setting-row" style="display: none;">
+          <label>Long break</label>
+          <div class="timer-setting-input">
+            <input type="number" id="timer-long-break-mins" value="15" min="1" max="60"> min
+          </div>
+        </div>
+        <div id="timer-sessions-row" class="timer-setting-row" style="display: none;">
+          <label>Long break after</label>
+          <div class="timer-setting-input">
+            <input type="number" id="timer-sessions-until-long" value="4" min="1" max="10"> sessions
+          </div>
+        </div>
+        <div id="timer-autostart-row" class="timer-setting-row" style="display: none;">
+          <label>Auto-start next</label>
+          <label class="settings-toggle timer-toggle-compact">
+            <input type="checkbox" id="timer-autostart">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="timer-progress-row" class="timer-setting-row" style="display: none;">
+          <label>Show progress</label>
+          <label class="settings-toggle timer-toggle-compact">
+            <input type="checkbox" id="timer-progress" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="timer-setting-row">
+          <label>Sound</label>
+          <label class="settings-toggle timer-toggle-compact">
+            <input type="checkbox" id="timer-sound" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Notepad -->
   <div id="notepad-tab" style="display: none;">📝</div>

@@ -21,6 +21,7 @@ import AudioBlock from './AudioBlock'
 import FileBlock from './FileBlock'
 import EmbedBlock from './EmbedBlock'
 import RevealBlock from './RevealBlock'
+import AlignmentTune from './AlignmentTune'
 import { UndoManager } from './UndoManager'
 import { appState } from './state'
 
@@ -45,40 +46,56 @@ export function initEditor(
       paragraph: {
         class: ParagraphWithBlanks,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       header: {
         class: Header as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       list: {
         class: List as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       code: {
         class: Code as any,
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       table: {
         class: Table as any,
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       toggle: {
         class: CustomToggleBlock as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
-        tunes: ['backgroundColor', 'wrapCallout']
+        tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       callout: {
         class: CalloutBlock as any,
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
+        tunes: ['alignment']
       },
-      image: ResizableImage as any,
-      audio: AudioBlock as any,
-      file: FileBlock as any,
-      embed: EmbedBlock as any,
-      reveal: RevealBlock as any,
+      image: {
+        class: ResizableImage as any,
+        tunes: ['alignment']
+      },
+      audio: {
+        class: AudioBlock as any,
+        tunes: ['alignment']
+      },
+      file: {
+        class: FileBlock as any,
+        tunes: ['alignment']
+      },
+      embed: {
+        class: EmbedBlock as any,
+        tunes: ['alignment']
+      },
+      reveal: {
+        class: RevealBlock as any,
+        tunes: ['alignment']
+      },
       link: LinkTool as any,
       highlight: HighlightTool as any,
       color: ColorTool as any,
@@ -88,6 +105,7 @@ export function initEditor(
       page: PageBlock as any,
       backgroundColor: BackgroundColorTune as any,
       wrapCallout: WrapCalloutTune as any,
+      alignment: AlignmentTune as any,
     },
 
     placeholder: 'Type / for commands...',

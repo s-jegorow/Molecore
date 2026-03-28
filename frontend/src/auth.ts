@@ -1,11 +1,11 @@
 import Keycloak from 'keycloak-js'
 import { API_URL } from './api'
 
-// Keycloak configuration - replace with your values
+// Keycloak configuration - hardcoded for production
 const keycloakConfig = {
-  url: 'https://your-keycloak-server.com',
-  realm: 'your-realm',
-  clientId: 'your-client-id',
+  url: 'https://keycloak.sonic-reducer.de',
+  realm: 'Nx',
+  clientId: 'nx-webapp',
 }
 
 const keycloak = new Keycloak(keycloakConfig)
@@ -55,6 +55,11 @@ export async function getToken(): Promise<string | undefined> {
     await keycloak.updateToken(30)
     return keycloak.token
   } catch (error) {
+    if (!navigator.onLine) {
+      // Network is offline — keep the token and let individual requests fail gracefully
+      console.warn('Token refresh skipped: offline')
+      return keycloak.token
+    }
     keycloak.clearToken()
     window.dispatchEvent(new CustomEvent('sessionExpired'))
     return undefined

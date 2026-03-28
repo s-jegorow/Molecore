@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pathlib import Path
 from database import engine, get_db, Base
-from models import Page, UserPreferences
+from models import Page, UserPreferences, CalendarEvent
 from auth import get_current_user
 
 # Create tables on startup
@@ -19,9 +19,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="nx API")
 
 # CORS for frontend
+_cors_origin = os.getenv("CORS_ORIGIN", "https://molecore.sonic-reducer.de")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://your-frontend-domain.com"],
+    allow_origins=[_cors_origin],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -49,7 +50,27 @@ class PageCreate(BaseModel):
     order: Optional[int] = 0
 
 # Valid page types
-VALID_PAGE_TYPES = {"home", "favorite", "normal", "template", "notepad"}
+VALID_PAGE_TYPES = {"home", "favorite", "normal", "template", "notepad", "todo"}
+
+VALID_EVENT_COLORS = {"gray", "red", "orange", "green", "blue", "purple"}
+
+class CalendarEventCreate(BaseModel):
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    title: str = Field(..., min_length=1, max_length=500)
+    time: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = "gray"
+
+class CalendarEventUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=500)
+    time: Optional[str] = Field(None, max_length=50)
+    color: Optional[str] = None
+
+class CalendarEventResponse(BaseModel):
+    id: int
+    date: str
+    title: str
+    time: Optional[str]
+    color: Optional[str]
 
 class PageUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=500)
@@ -100,7 +121,7 @@ def get_pages(
     user_id = current_user.get("user_id")
     pages = db.query(Page).filter(
         Page.user_id == user_id,
-        Page.page_type != "notepad"
+        Page.page_type.notin_(["notepad", "todo"])
     ).order_by(Page.order).all()
 
     # If user has no pages, create a default home page
@@ -254,9 +275,9 @@ def update_page(
         ).first()
         if not parent:
             raise HTTPException(status_code=400, detail="Parent page not found")
-        # Prevent circular reference
-        if page_data.parent_id == page_id:
-            raise HTTPException(status_code=400, detail="Page cannot be its own parent")
+        # Prevent circular reference (direct and indirect)
+        if page_data.parent_id == page_id or would_create_cycle(db, page_id, page_data.parent_id, user_id):
+            raise HTTPException(status_code=400, detail="Setting this parent would create a circular reference")
 
     # Update only changed fields
     if page_data.title is not None:
@@ -312,6 +333,23 @@ def delete_page(
 
     return {"message": "Page deleted successfully"}
 
+def would_create_cycle(db: Session, page_id: int, new_parent_id: int, user_id: str) -> bool:
+    """Return True if setting new_parent_id on page_id would create a circular reference."""
+    visited: set = set()
+    current_id: Optional[int] = new_parent_id
+    while current_id is not None:
+        if current_id == page_id:
+            return True
+        if current_id in visited:
+            break
+        visited.add(current_id)
+        row = db.query(Page.parent_id).filter(
+            Page.id == current_id,
+            Page.user_id == user_id
+        ).first()
+        current_id = row[0] if row else None
+    return False
+
 def get_user_storage_usage(user_id: str) -> int:
     """Calculate total storage used by user in bytes"""
     user_dir = UPLOAD_DIR / user_id
@@ -339,32 +377,38 @@ async def upload_file(
     if not uploaded_file:
         raise HTTPException(status_code=400, detail="No file provided")
 
+    # Read content first so we can do magic-byte validation
+    content = await uploaded_file.read()
+
+    def _is_valid_image(data: bytes) -> bool:
+        if data[:3] == b'\xff\xd8\xff':
+            return True  # JPEG
+        if data[:8] == b'\x89PNG\r\n\x1a\n':
+            return True  # PNG
+        if data[:6] in (b'GIF87a', b'GIF89a'):
+            return True  # GIF
+        if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+            return True  # WebP
+        return False
+
+    _BLOCKED_EXTENSIONS = {
+        ".exe", ".bat", ".cmd", ".sh", ".msi", ".com", ".pif", ".scr",
+        ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".ps1", ".ps2",
+        ".jar", ".app", ".deb", ".rpm", ".dmg", ".pkg", ".elf",
+    }
+
     # Validate file type based on upload_type
     if upload_type in ["header", "icon", "auto"]:
-        # Image uploads
-        allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
-        if uploaded_file.content_type not in allowed_types:
-            raise HTTPException(status_code=400, detail="Only image files are allowed")
+        if not _is_valid_image(content):
+            raise HTTPException(status_code=400, detail="Only image files are allowed (JPEG, PNG, GIF, WebP)")
     elif upload_type == "audio":
-        # Audio uploads
         allowed_types = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/webm", "audio/x-m4a"]
         if uploaded_file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail="Only audio files are allowed")
     elif upload_type == "file":
-        # General file uploads - allow all types except executables
-        blocked_types = [
-            "application/x-msdownload",
-            "application/x-executable",
-            "application/x-msdos-program"
-        ]
-        blocked_extensions = [".exe", ".bat", ".cmd", ".sh", ".msi"]
         file_ext = Path(uploaded_file.filename).suffix.lower() if uploaded_file.filename else ""
-
-        if uploaded_file.content_type in blocked_types or file_ext in blocked_extensions:
+        if file_ext in _BLOCKED_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Executable files are not allowed")
-
-    # Read content
-    content = await uploaded_file.read()
 
     # Check file size limit (20 MB)
     if len(content) > MAX_FILE_SIZE:
@@ -576,17 +620,21 @@ def get_preferences(
         return {}
 
 
+class PreferencesUpdate(BaseModel):
+    model_config = {"extra": "allow"}
+
 @app.put("/api/preferences")
 def update_preferences(
-    data: dict,
+    data: PreferencesUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Update user preferences"""
     user_id = current_user.get("user_id")
+    update_dict = data.model_dump(exclude_none=True)
     prefs = db.query(UserPreferences).filter(UserPreferences.user_id == user_id).first()
     if not prefs:
-        prefs = UserPreferences(user_id=user_id, preferences=json.dumps(data))
+        prefs = UserPreferences(user_id=user_id, preferences=json.dumps(update_dict))
         db.add(prefs)
     else:
         existing = {}
@@ -594,7 +642,7 @@ def update_preferences(
             existing = json.loads(prefs.preferences)
         except (json.JSONDecodeError, TypeError):
             pass
-        existing.update(data)
+        existing.update(update_dict)
         prefs.preferences = json.dumps(existing)
     db.commit()
     try:
@@ -645,3 +693,133 @@ def get_notepad(
     notepad.updated_at = notepad.updated_at.isoformat()
 
     return notepad
+
+
+# Todo Endpoint
+
+@app.get("/api/todo", response_model=PageResponse)
+def get_todo(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get or create the user's todo page"""
+    user_id = current_user.get("user_id")
+
+    todo = db.query(Page).filter(
+        Page.user_id == user_id,
+        Page.page_type == "todo"
+    ).first()
+
+    if not todo:
+        todo = Page(
+            title="Todos",
+            content=json.dumps({
+                "time": int(time.time() * 1000),
+                "blocks": [],
+                "version": "2.28.2"
+            }),
+            parent_id=None,
+            page_type="todo",
+            icon="☑️",
+            order=-1,
+            user_id=user_id
+        )
+        db.add(todo)
+        db.commit()
+        db.refresh(todo)
+
+    if isinstance(todo.content, str):
+        try:
+            todo.content = json.loads(todo.content)
+        except (json.JSONDecodeError, TypeError):
+            todo.content = {"blocks": []}
+    todo.created_at = todo.created_at.isoformat()
+    todo.updated_at = todo.updated_at.isoformat()
+
+    return todo
+
+
+# Calendar Endpoints
+
+@app.get("/api/calendar", response_model=List[CalendarEventResponse])
+def get_calendar_events(
+    year: int,
+    month: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    if not (1900 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be between 1900 and 2100")
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be between 1 and 12")
+    user_id = current_user.get("user_id")
+    prefix = f"{year}-{str(month).zfill(2)}-"
+    events = db.query(CalendarEvent).filter(
+        CalendarEvent.user_id == user_id,
+        CalendarEvent.date.like(f"{prefix}%")
+    ).order_by(CalendarEvent.date, CalendarEvent.created_at).all()
+    return events
+
+
+@app.post("/api/calendar", response_model=CalendarEventResponse)
+def create_calendar_event(
+    data: CalendarEventCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("user_id")
+    color = data.color if data.color in VALID_EVENT_COLORS else "gray"
+    event = CalendarEvent(
+        user_id=user_id,
+        date=data.date,
+        title=data.title,
+        time=data.time or None,
+        color=color
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@app.put("/api/calendar/{event_id}", response_model=CalendarEventResponse)
+def update_calendar_event(
+    event_id: int,
+    data: CalendarEventUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("user_id")
+    event = db.query(CalendarEvent).filter(
+        CalendarEvent.id == event_id,
+        CalendarEvent.user_id == user_id
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if data.title is not None:
+        event.title = data.title
+    if data.time is not None:
+        event.time = data.time or None
+    if data.color is not None:
+        event.color = data.color if data.color in VALID_EVENT_COLORS else "gray"
+    db.commit()
+    db.refresh(event)
+    return event
+
+
+@app.delete("/api/calendar/{event_id}")
+def delete_calendar_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("user_id")
+    event = db.query(CalendarEvent).filter(
+        CalendarEvent.id == event_id,
+        CalendarEvent.user_id == user_id
+    ).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    db.delete(event)
+    db.commit()
+    return {"ok": True}

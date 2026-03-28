@@ -2,6 +2,9 @@ import { getToken, logout } from './auth'
 import { API_URL, getPreferences, updatePreferences } from './api'
 import { Modal } from './Modal'
 import { showNotepadTab, hideNotepadTab } from './notepad'
+import { showTimerTab, hideTimerTab } from './timer'
+import { showTodoTab, hideTodoTab } from './todo'
+import { showCalendarTab, hideCalendarTab } from './calendar'
 
 // DOM elements
 let settingsModal: HTMLElement | null = null
@@ -43,6 +46,65 @@ export function initProfileModal(): void {
       else hideNotepadTab()
     })
   }
+
+  // Calendar toggle
+  const calendarToggle = document.getElementById('calendar-toggle') as HTMLInputElement
+  if (calendarToggle) {
+    getPreferences().then(prefs => {
+      calendarToggle.checked = prefs.calendar_enabled ?? false
+      if (calendarToggle.checked) showCalendarTab()
+    })
+    calendarToggle.addEventListener('change', async () => {
+      await updatePreferences({ calendar_enabled: calendarToggle.checked })
+      if (calendarToggle.checked) showCalendarTab()
+      else hideCalendarTab()
+    })
+  }
+
+  // Todo toggle
+  const todoToggle = document.getElementById('todo-toggle') as HTMLInputElement
+  if (todoToggle) {
+    getPreferences().then(prefs => {
+      todoToggle.checked = prefs.todo_enabled ?? false
+      if (todoToggle.checked) showTodoTab()
+    })
+    todoToggle.addEventListener('change', async () => {
+      await updatePreferences({ todo_enabled: todoToggle.checked })
+      if (todoToggle.checked) showTodoTab()
+      else hideTodoTab()
+    })
+  }
+
+  // Focus Timer toggle
+  const timerToggle = document.getElementById('timer-toggle') as HTMLInputElement
+  if (timerToggle) {
+    getPreferences().then(prefs => {
+      timerToggle.checked = prefs.focus_timer_enabled ?? false
+      if (timerToggle.checked) showTimerTab()
+    })
+    timerToggle.addEventListener('change', async () => {
+      await updatePreferences({ focus_timer_enabled: timerToggle.checked })
+      if (timerToggle.checked) showTimerTab()
+      else hideTimerTab()
+    })
+  }
+
+  // Grain toggle
+  const grainToggle = document.getElementById('grain-toggle') as HTMLInputElement
+  if (grainToggle) {
+    getPreferences().then(prefs => {
+      grainToggle.checked = prefs.grain_enabled ?? false
+      applyGrain(grainToggle.checked)
+    })
+    grainToggle.addEventListener('change', async () => {
+      await updatePreferences({ grain_enabled: grainToggle.checked })
+      applyGrain(grainToggle.checked)
+    })
+  }
+}
+
+function applyGrain(enabled: boolean): void {
+  document.body.classList.toggle('grain-enabled', enabled)
 }
 
 // Open the profile modal

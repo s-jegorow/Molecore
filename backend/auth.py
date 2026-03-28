@@ -2,23 +2,32 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import httpx
+import time as _time
 from typing import Optional, Dict
-from functools import lru_cache
 
-KEYCLOAK_URL = "https://your-keycloak-server.com"
-REALM = "your-realm"
-CLIENT_ID = "your-client-id"
+KEYCLOAK_URL = "https://keycloak.sonic-reducer.de"
+REALM = "Nx"
+CLIENT_ID = "nx-webapp"
 
 security = HTTPBearer()
 
-@lru_cache()
-def get_jwks() -> dict:
-    url = f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/certs"
+_jwks_cache: Optional[dict] = None
+_jwks_cache_time: float = 0
+_JWKS_TTL = 3600  # refresh keys every hour
 
+def get_jwks(force_refresh: bool = False) -> dict:
+    global _jwks_cache, _jwks_cache_time
+    now = _time.time()
+    if not force_refresh and _jwks_cache is not None and (now - _jwks_cache_time) < _JWKS_TTL:
+        return _jwks_cache
+
+    url = f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/certs"
     try:
         response = httpx.get(url, timeout=10.0)
         response.raise_for_status()
-        return response.json()
+        _jwks_cache = response.json()
+        _jwks_cache_time = now
+        return _jwks_cache
     except Exception as e:
         print(f"JWKS fetch error: {e}")
         raise HTTPException(
@@ -44,6 +53,14 @@ def get_public_key_for_token(token: str) -> str:
             if k.get("kid") == kid:
                 key = k
                 break
+
+        if not key:
+            # Kid not found — may be a key rotation; try force-refreshing the cache
+            jwks = get_jwks(force_refresh=True)
+            for k in jwks["keys"]:
+                if k.get("kid") == kid:
+                    key = k
+                    break
 
         if not key:
             raise Exception(f"No key found with kid: {kid}")

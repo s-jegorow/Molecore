@@ -17,8 +17,6 @@ class AppState {
 
   set currentPageId(id: number | null) {
     this._currentPageId = id
-    // Make available globally for blocks that need it
-    ;(window as any).currentPageId = id
   }
 
   get editor(): EditorJS | null {
@@ -27,8 +25,6 @@ class AppState {
 
   set editor(editor: EditorJS | null) {
     this._editor = editor
-    // Make available globally for blocks that need it
-    ;(window as any).editor = editor
   }
 
   get undoManager(): UndoManager | null {
