@@ -67,6 +67,75 @@ class ModalManager {
   }
 
   /**
+   * Show a confirmation modal with an optional checkbox below the message.
+   * Returns { confirmed, checked }.
+   */
+  confirmWithCheckbox(
+    message: string,
+    checkboxLabel: string,
+    title?: string
+  ): Promise<{ confirmed: boolean; checked: boolean }> {
+    return new Promise(async (resolve) => {
+      const checkboxId = 'modal-checkbox-' + Math.random().toString(36).slice(2)
+
+      // Wait for any existing modal to close first
+      if (this.closePromise) await this.closePromise
+
+      const modal = document.createElement('div')
+      modal.className = 'alert-modal'
+
+      const icon = this.getIcon('warning')
+      modal.innerHTML = `
+        <div class="alert-modal-overlay"></div>
+        <div class="alert-modal-content">
+          <div class="alert-modal-header">
+            <div class="alert-modal-icon alert-modal-icon-warning">${icon}</div>
+            <h3 class="alert-modal-title">${this.escapeHtml(title || 'Confirm')}</h3>
+          </div>
+          <div class="alert-modal-body">
+            <p class="alert-modal-message">${this.escapeHtml(message)}</p>
+            <label class="alert-modal-checkbox-label">
+              <input type="checkbox" id="${checkboxId}" class="alert-modal-checkbox">
+              <span>${this.escapeHtml(checkboxLabel)}</span>
+            </label>
+          </div>
+          <div class="alert-modal-footer">
+            <button class="alert-modal-btn alert-modal-btn-cancel">Cancel</button>
+            <button class="alert-modal-btn alert-modal-btn-confirm alert-modal-btn-warning">Delete</button>
+          </div>
+        </div>
+      `
+
+      const overlay = modal.querySelector('.alert-modal-overlay') as HTMLElement
+      const confirmBtn = modal.querySelector('.alert-modal-btn-confirm') as HTMLElement
+      const cancelBtn = modal.querySelector('.alert-modal-btn-cancel') as HTMLElement
+      const checkbox = modal.querySelector(`#${checkboxId}`) as HTMLInputElement
+
+      const handleConfirm = () => {
+        this.close()
+        resolve({ confirmed: true, checked: checkbox.checked })
+      }
+      const handleCancel = () => {
+        this.close()
+        resolve({ confirmed: false, checked: false })
+      }
+
+      confirmBtn.addEventListener('click', handleConfirm)
+      cancelBtn.addEventListener('click', handleCancel)
+      overlay.addEventListener('click', handleCancel)
+
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') { handleCancel(); document.removeEventListener('keydown', handleEscape) }
+      }
+      document.addEventListener('keydown', handleEscape)
+
+      this.container?.appendChild(modal)
+      this.activeModal = modal
+      requestAnimationFrame(() => modal.classList.add('alert-modal-show'))
+    })
+  }
+
+  /**
    * Show a success message
    */
   success(message: string, title?: string): Promise<void> {

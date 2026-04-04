@@ -67,9 +67,10 @@ export async function updatePage(id: number, data: PageUpdate): Promise<Page> {
 }
 
 // Page löschen
-export async function deletePage(id: number): Promise<void> {
+export async function deletePage(id: number, cascade = false): Promise<void> {
   invalidatePagesCache()
-  const response = await fetch(`${API_URL}/api/pages/${id}`, {
+  const url = cascade ? `${API_URL}/api/pages/${id}?cascade=true` : `${API_URL}/api/pages/${id}`
+  const response = await fetch(url, {
     method: 'DELETE',
     headers: await getAuthHeaders()
   })

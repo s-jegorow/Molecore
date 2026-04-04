@@ -50,6 +50,7 @@ export function initEditor(
       },
       header: {
         class: Header as any,
+        config: { levels: [1, 2, 3], defaultLevel: 2 },
         inlineToolbar: ['bold', 'italic', 'link', 'highlight', 'color', 'underline', 'strikethrough', 'tooltip'],
         tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },

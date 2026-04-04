@@ -2,9 +2,11 @@ import { getToken, logout } from './auth'
 import { API_URL, getPreferences, updatePreferences } from './api'
 import { Modal } from './Modal'
 import { showNotepadTab, hideNotepadTab } from './notepad'
+import { showToolboxTab, hideToolboxTab } from './toolbox'
 import { showTimerTab, hideTimerTab } from './timer'
 import { showTodoTab, hideTodoTab } from './todo'
 import { showCalendarTab, hideCalendarTab } from './calendar'
+import { refreshSidebar } from './ui'
 
 // DOM elements
 let settingsModal: HTMLElement | null = null
@@ -33,59 +35,60 @@ export function initProfileModal(): void {
   settingsLogoutBtn?.addEventListener('click', handleLogout)
   cleanupUploadsBtn?.addEventListener('click', handleCleanupUploads)
 
-  // Notepad toggle
-  const notepadToggle = document.getElementById('notepad-toggle') as HTMLInputElement
-  if (notepadToggle) {
-    getPreferences().then(prefs => {
-      notepadToggle.checked = prefs.notepad_enabled ?? false
-      if (notepadToggle.checked) showNotepadTab()
-    })
-    notepadToggle.addEventListener('change', async () => {
-      await updatePreferences({ notepad_enabled: notepadToggle.checked })
-      if (notepadToggle.checked) showNotepadTab()
-      else hideNotepadTab()
+  // Notion Importer
+  const notionBtn = document.getElementById('notion-importer-btn')
+  notionBtn?.addEventListener('click', () => {
+    closeProfileModal()
+    openNotionImporter()
+  })
+
+  // Side tab chips
+  type ChipDef = {
+    id: string
+    pref: string
+    show: () => void
+    hide: () => void
+    default: boolean
+  }
+
+  const chipDefs: ChipDef[] = [
+    { id: 'notepad-chip',  pref: 'notepad_enabled',     show: showNotepadTab,  hide: hideNotepadTab,  default: false },
+    { id: 'todo-chip',     pref: 'todo_enabled',         show: showTodoTab,     hide: hideTodoTab,     default: false },
+    { id: 'timer-chip',    pref: 'focus_timer_enabled',  show: showTimerTab,    hide: hideTimerTab,    default: false },
+    { id: 'calendar-chip', pref: 'calendar_enabled',     show: showCalendarTab, hide: hideCalendarTab, default: false },
+    { id: 'toolbox-chip',  pref: 'toolbox_enabled',      show: showToolboxTab,  hide: hideToolboxTab,  default: false },
+  ]
+
+  getPreferences().then(prefs => {
+    for (const def of chipDefs) {
+      const chip = document.getElementById(def.id)
+      if (!chip) continue
+      const enabled = prefs[def.pref] ?? def.default
+      chip.classList.toggle('active', enabled)
+      if (enabled) def.show()
+    }
+  })
+
+  for (const def of chipDefs) {
+    const chip = document.getElementById(def.id)
+    if (!chip) continue
+    chip.addEventListener('click', async () => {
+      const active = chip.classList.toggle('active')
+      await updatePreferences({ [def.pref]: active })
+      if (active) def.show()
+      else def.hide()
     })
   }
 
-  // Calendar toggle
-  const calendarToggle = document.getElementById('calendar-toggle') as HTMLInputElement
-  if (calendarToggle) {
+  // Dashboard toggle
+  const dashboardToggle = document.getElementById('dashboard-toggle') as HTMLInputElement
+  if (dashboardToggle) {
     getPreferences().then(prefs => {
-      calendarToggle.checked = prefs.calendar_enabled ?? false
-      if (calendarToggle.checked) showCalendarTab()
+      dashboardToggle.checked = prefs.dashboard_enabled ?? true
     })
-    calendarToggle.addEventListener('change', async () => {
-      await updatePreferences({ calendar_enabled: calendarToggle.checked })
-      if (calendarToggle.checked) showCalendarTab()
-      else hideCalendarTab()
-    })
-  }
-
-  // Todo toggle
-  const todoToggle = document.getElementById('todo-toggle') as HTMLInputElement
-  if (todoToggle) {
-    getPreferences().then(prefs => {
-      todoToggle.checked = prefs.todo_enabled ?? false
-      if (todoToggle.checked) showTodoTab()
-    })
-    todoToggle.addEventListener('change', async () => {
-      await updatePreferences({ todo_enabled: todoToggle.checked })
-      if (todoToggle.checked) showTodoTab()
-      else hideTodoTab()
-    })
-  }
-
-  // Focus Timer toggle
-  const timerToggle = document.getElementById('timer-toggle') as HTMLInputElement
-  if (timerToggle) {
-    getPreferences().then(prefs => {
-      timerToggle.checked = prefs.focus_timer_enabled ?? false
-      if (timerToggle.checked) showTimerTab()
-    })
-    timerToggle.addEventListener('change', async () => {
-      await updatePreferences({ focus_timer_enabled: timerToggle.checked })
-      if (timerToggle.checked) showTimerTab()
-      else hideTimerTab()
+    dashboardToggle.addEventListener('change', async () => {
+      await updatePreferences({ dashboard_enabled: dashboardToggle.checked })
+      refreshSidebar()
     })
   }
 
@@ -164,6 +167,116 @@ async function loadStorageStats(): Promise<void> {
 function handleLogout(): void {
   closeProfileModal()
   logout()
+}
+
+// Notion Importer modal
+function openNotionImporter(): void {
+  const overlay = document.getElementById('notion-importer-modal')
+  const bodyForm = document.getElementById('ni-body-form')
+  const bodyLog = document.getElementById('ni-body-log')
+  const fileInput = document.getElementById('ni-file-input') as HTMLInputElement
+  const dropzone = document.getElementById('ni-dropzone')
+  const dropLabel = document.getElementById('ni-dropzone-label')
+  const importBtn = document.getElementById('ni-import-btn') as HTMLButtonElement
+  const parentIdInput = document.getElementById('ni-parent-id') as HTMLInputElement
+  const logEl = document.getElementById('ni-log')
+  const spinner = document.getElementById('ni-spinner')
+  const progressLabel = document.getElementById('ni-progress-label')
+  const doneActions = document.getElementById('ni-done-actions')
+
+  if (!overlay) return
+
+  // Reset to form view
+  bodyForm!.style.display = ''
+  bodyLog!.style.display = 'none'
+  fileInput.value = ''
+  parentIdInput.value = ''
+  importBtn.disabled = true
+  if (dropLabel) dropLabel.innerHTML = 'Drop .zip here or <u>browse</u>'
+
+  overlay.classList.add('active')
+  overlay.setAttribute('aria-hidden', 'false')
+
+  let selectedFile: File | null = null
+
+  function setFile(f: File): void {
+    if (!f.name.toLowerCase().endsWith('.zip')) return
+    selectedFile = f
+    if (dropLabel) dropLabel.textContent = f.name
+    importBtn.disabled = false
+  }
+
+  // File input change
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) setFile(fileInput.files[0])
+  }, { once: true })
+
+  // Click dropzone → trigger file picker
+  dropzone?.addEventListener('click', () => fileInput.click())
+
+  // Drag & drop
+  dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('ni-dropzone--over') })
+  dropzone?.addEventListener('dragleave', () => dropzone.classList.remove('ni-dropzone--over'))
+  dropzone?.addEventListener('drop', (e) => {
+    e.preventDefault()
+    dropzone.classList.remove('ni-dropzone--over')
+    const f = e.dataTransfer?.files[0]
+    if (f) setFile(f)
+  })
+
+  // Close buttons
+  function closeModal(): void {
+    overlay.classList.remove('active')
+    overlay.setAttribute('aria-hidden', 'true')
+  }
+
+  document.getElementById('ni-close-btn')?.addEventListener('click', closeModal, { once: true })
+  document.getElementById('ni-cancel-btn')?.addEventListener('click', closeModal, { once: true })
+  document.getElementById('ni-done-btn')?.addEventListener('click', closeModal, { once: true })
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal() })
+
+  // Import
+  importBtn.addEventListener('click', async () => {
+    if (!selectedFile) return
+
+    bodyForm!.style.display = 'none'
+    bodyLog!.style.display = ''
+    doneActions!.style.display = 'none'
+    spinner!.style.display = ''
+    if (progressLabel) progressLabel.textContent = 'Importing…'
+    if (logEl) logEl.textContent = ''
+
+    try {
+      const token = await getToken()
+      const formData = new FormData()
+      formData.append('zip_file', selectedFile)
+      const parentId = parentIdInput.value.trim()
+      if (parentId) formData.append('parent_id', parentId)
+
+      const response = await fetch(`${API_URL}/api/import/notion`, {
+        method: 'POST',
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        body: formData,
+      })
+
+      const data = await response.json()
+      spinner!.style.display = 'none'
+
+      if (!response.ok) {
+        if (progressLabel) progressLabel.textContent = 'Import failed'
+        if (logEl) logEl.textContent = data.detail || 'Unknown error'
+      } else {
+        if (progressLabel) progressLabel.textContent = `Done — ${data.pages_created} page(s) imported`
+        if (logEl) logEl.textContent = (data.log as string[]).join('\n')
+      }
+    } catch (err) {
+      spinner!.style.display = 'none'
+      if (progressLabel) progressLabel.textContent = 'Import failed'
+      if (logEl) logEl.textContent = String(err)
+    }
+
+    doneActions!.style.display = ''
+  }, { once: true })
 }
 
 // Handle cleanup of unused uploaded files

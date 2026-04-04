@@ -17,13 +17,6 @@ export default class PageBlock implements BlockTool {
     this.currentPageId = (window as any).currentPageId || null
   }
 
-  static get toolbox() {
-    return {
-      title: 'Page',
-      icon: '📄'
-    }
-  }
-
   render() {
     this.container = document.createElement('div')
     this.container.style.position = 'relative'

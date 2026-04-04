@@ -1,9 +1,16 @@
+import asyncio
+import io as _io
 import json
 import os
+import sys as _sys
 import time
 import secrets
+import tempfile as _tempfile
+import zipfile as _zipfile
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -19,7 +26,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="nx API")
 
 # CORS for frontend
-_cors_origin = os.environ["CORS_ORIGIN"]
+_cors_origin = os.getenv("CORS_ORIGIN", "https://molecore.sonic-reducer.de")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[_cors_origin],
@@ -311,10 +318,11 @@ def update_page(
 @app.delete("/api/pages/{page_id}")
 def delete_page(
     page_id: int,
+    cascade: bool = False,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete a page"""
+    """Delete a page. Pass ?cascade=true to also delete all subpages recursively."""
     user_id = current_user.get("user_id")
     page = db.query(Page).filter(
         Page.id == page_id,
@@ -324,13 +332,30 @@ def delete_page(
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    # Home page cannot be deleted
     if page.page_type == "home":
         raise HTTPException(status_code=400, detail="Cannot delete home page")
 
-    db.delete(page)
-    db.commit()
+    if cascade:
+        # BFS to collect all descendant IDs
+        to_delete = [page_id]
+        queue = [page_id]
+        while queue:
+            current = queue.pop(0)
+            children = db.query(Page.id).filter(
+                Page.parent_id == current,
+                Page.user_id == user_id
+            ).all()
+            for (child_id,) in children:
+                to_delete.append(child_id)
+                queue.append(child_id)
+        db.query(Page).filter(
+            Page.id.in_(to_delete),
+            Page.user_id == user_id
+        ).delete(synchronize_session=False)
+    else:
+        db.delete(page)
 
+    db.commit()
     return {"message": "Page deleted successfully"}
 
 def would_create_cycle(db: Session, page_id: int, new_parent_id: int, user_id: str) -> bool:
@@ -823,3 +848,89 @@ def delete_calendar_event(
     db.delete(event)
     db.commit()
     return {"ok": True}
+
+
+# ─── Notion Importer ──────────────────────────────────────────────────────────
+
+class _StaticToken:
+    """Wraps an existing bearer token so notion_importer needs no Keycloak login."""
+    def __init__(self, token: str):
+        self._token = token
+
+    @property
+    def token(self) -> str:
+        return self._token
+
+
+@contextmanager
+def _capture_stdout():
+    buf = _io.StringIO()
+    old = _sys.stdout
+    _sys.stdout = buf
+    try:
+        yield buf
+    finally:
+        _sys.stdout = old
+
+
+@app.post("/api/import/notion")
+async def import_notion(
+    request: Request,
+    zip_file: UploadFile = File(...),
+    parent_id: Optional[int] = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """Import a Notion export ZIP into Molecore."""
+    from notion_importer import process_directory
+
+    if not zip_file.filename or not zip_file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip files are supported")
+
+    content = await zip_file.read()
+    if len(content) > 200 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="ZIP file too large (max 200 MB)")
+
+    auth_header = request.headers.get("Authorization", "")
+    bearer_token = auth_header.removeprefix("Bearer ").strip()
+    if not bearer_token:
+        raise HTTPException(status_code=401, detail="Missing authorization token")
+    tm = _StaticToken(bearer_token)
+
+    # Call back to self — works because uvicorn handles concurrent requests
+    api_base = os.getenv("INTERNAL_API_BASE", "http://localhost:8000")
+
+    # Extract ZIP before entering thread so we can raise HTTP errors cleanly
+    tmpdir_obj = _tempfile.TemporaryDirectory()
+    tmpdir = tmpdir_obj.name
+    try:
+        with _zipfile.ZipFile(_io.BytesIO(content)) as zf:
+            zf.extractall(tmpdir)
+    except _zipfile.BadZipFile:
+        tmpdir_obj.cleanup()
+        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+
+    candidates = [
+        d for d in Path(tmpdir).iterdir()
+        if d.is_dir() and not d.name.startswith("_") and not d.name.startswith(".")
+    ]
+    root_dir = candidates[0] if candidates else Path(tmpdir)
+
+    # Run the blocking import in a thread so the event loop stays free
+    # to handle the HTTP callbacks that process_directory makes back to this server.
+    def _run_import():
+        buf = _io.StringIO()
+        old_stdout = _sys.stdout
+        _sys.stdout = buf
+        try:
+            result = process_directory(root_dir, parent_id, api_base, tm)
+        finally:
+            _sys.stdout = old_stdout
+            tmpdir_obj.cleanup()
+        return result, buf.getvalue()
+
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        created, log_output = await loop.run_in_executor(executor, _run_import)
+
+    log_lines = [line for line in log_output.splitlines() if line.strip()]
+    return {"pages_created": len(created), "log": log_lines}

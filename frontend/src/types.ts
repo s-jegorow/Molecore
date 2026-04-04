@@ -35,6 +35,7 @@ export interface EditorJSContent {
   time?: number
   blocks: EditorJSBlock[]
   version?: string
+  title_color?: string
 }
 
 export interface EditorJSBlock {

@@ -15,9 +15,15 @@
     "@editorjs/list": "^2.0.9",
     "@editorjs/paragraph": "^2.11.7",
     "@editorjs/table": "^2.4.5",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@types/qrcode": "^1.5.6",
     "editorjs-drag-drop": "^1.1.16",
     "editorjs-toggle-block": "^0.3.16",
-    "keycloak-js": "^26.2.2"
+    "keycloak-js": "^26.2.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.6.205",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

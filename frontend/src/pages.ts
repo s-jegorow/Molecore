@@ -1,4 +1,4 @@
-import { getPage, getPages, updatePage, deletePage, API_URL } from './api'
+import { getPage, getPages, updatePage, deletePage, getPreferences, API_URL } from './api'
 import { setActivePage, refreshSidebar } from './ui'
 import { appState } from './state'
 import { Modal } from './Modal'
@@ -130,10 +130,14 @@ export async function loadPage(pageId: number) {
       }
     }
 
-    // Update page title
+    // Update page title + title color
     const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
     if (pageTitleInput) {
       pageTitleInput.value = page.title
+      const raw = (page.content as any)?.title_color || ''
+      const titleColor = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : ''
+      pageTitleInput.style.color = titleColor
+      applyTitleColorIndicator(titleColor)
     }
 
     appState.currentPageId = pageId
@@ -161,11 +165,22 @@ export async function loadPage(pageId: number) {
  */
 export async function navigateToHomePage(): Promise<void> {
   try {
-    const allPages = await getPages()
-    const homePage = allPages.find(p => p.page_type === 'home')
-    if (homePage) {
-      await loadPage(homePage.id)
+    const [allPages, prefs] = await Promise.all([getPages(), getPreferences().catch(() => ({}))])
+    const dashboardEnabled = prefs.dashboard_enabled ?? true
+
+    if (dashboardEnabled) {
+      const homePage = allPages.find(p => p.page_type === 'home')
+      if (homePage) {
+        await loadPage(homePage.id)
+        return
+      }
     }
+
+    // Dashboard disabled — load first favorite, fallback to first page
+    const firstFavorite = allPages.find(p => p.page_type === 'favorite' && !p.parent_id)
+    const firstPage = allPages.find(p => p.page_type !== 'home' && !p.parent_id)
+    const target = firstFavorite || firstPage || allPages.find(p => p.page_type === 'home')
+    if (target) await loadPage(target.id)
   } catch (error) {
     console.error('Failed to load home page:', error)
   }
@@ -174,9 +189,17 @@ export async function navigateToHomePage(): Promise<void> {
 /**
  * Auto-save the current page content
  */
+function setSyncIndicator(status: 'idle' | 'ok' | 'error') {
+  const el = document.getElementById('sync-indicator')
+  if (!el) return
+  el.classList.remove('sync-idle', 'sync-ok', 'sync-error')
+  el.classList.add(`sync-${status}`)
+  el.title = status === 'ok' ? 'Saved' : status === 'error' ? 'Save failed' : 'Not yet saved'
+}
+
 async function autoSave() {
   if (!appState.currentPageId || !appState.editor) return
-  if (appState.isSaving) return // Prevent concurrent saves
+  if (appState.isSaving) return
 
   try {
     appState.isSaving = true
@@ -184,10 +207,14 @@ async function autoSave() {
     const content = await appState.editor.save()
     const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
     const title = pageTitleInput?.value || 'Untitled'
+    const titleColor = pageTitleInput?.style.color || ''
+    if (titleColor) (content as any).title_color = titleColor
 
     await updatePage(appState.currentPageId, { content, title })
+    setSyncIndicator('ok')
   } catch (error) {
     console.error('Auto-save failed:', error)
+    setSyncIndicator('error')
   } finally {
     appState.isSaving = false
   }
@@ -308,11 +335,15 @@ function setupDeleteButton(): void {
   deleteBtn?.addEventListener('click', async () => {
     if (!appState.currentPageId) return
 
-    const confirmed = await Modal.confirm('Are you sure you want to delete this page? This action cannot be undone.', 'Delete Page')
+    const { confirmed, checked: cascade } = await Modal.confirmWithCheckbox(
+      'Are you sure you want to delete this page? This action cannot be undone.',
+      'Also delete all subpages',
+      'Delete Page'
+    )
     if (!confirmed) return
 
     try {
-      await deletePage(appState.currentPageId)
+      await deletePage(appState.currentPageId, cascade)
       await refreshSidebar()
       await navigateToHomePage()
     } catch (error: any) {
@@ -368,4 +399,123 @@ export function setupPageEventListeners(): void {
   setupLogoHandler()
   setupPageBlockAutoSave()
   setupPageBlockNavigation()
+  setupTitleColorPicker()
+  setupDragScroll()
+}
+
+/**
+ * Auto-scroll the main content area when dragging a block near the top/bottom edge.
+ * EditorJS uses HTML5 drag events, so we listen to dragover/dragend.
+ */
+function setupDragScroll(): void {
+  const main = document.querySelector('main')
+  if (!main) return
+
+  let rafId: number | null = null
+  let scrollSpeed = 0
+
+  const tick = () => {
+    if (scrollSpeed !== 0) {
+      main.scrollTop += scrollSpeed
+      rafId = requestAnimationFrame(tick)
+    } else {
+      rafId = null
+    }
+  }
+
+  document.addEventListener('dragover', (e) => {
+    const rect = main.getBoundingClientRect()
+    const zone = 80
+    const maxSpeed = 14
+
+    if (e.clientY > rect.bottom - zone) {
+      scrollSpeed = maxSpeed * ((e.clientY - (rect.bottom - zone)) / zone)
+    } else if (e.clientY < rect.top + zone) {
+      scrollSpeed = -maxSpeed * (((rect.top + zone) - e.clientY) / zone)
+    } else {
+      scrollSpeed = 0
+    }
+
+    if (scrollSpeed !== 0 && rafId === null) rafId = requestAnimationFrame(tick)
+    if (scrollSpeed === 0 && rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+  })
+
+  document.addEventListener('dragend', () => {
+    scrollSpeed = 0
+    if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
+  })
+}
+
+const TITLE_COLORS = [
+  { label: 'Default', value: '' },
+  { label: 'Gray',    value: '#888888' },
+  { label: 'Red',     value: '#e03e3e' },
+  { label: 'Orange',  value: '#d9730d' },
+  { label: 'Yellow',  value: '#c19a00' },
+  { label: 'Green',   value: '#0f7b6c' },
+  { label: 'Blue',    value: '#0b6e99' },
+  { label: 'Purple',  value: '#6940a5' },
+  { label: 'Pink',    value: '#ad1a72' },
+  { label: 'White',   value: '#ffffff' },
+]
+
+export function applyTitleColorIndicator(color: string): void {
+  const indicator = document.getElementById('title-color-indicator')
+  if (indicator) indicator.style.background = color || 'var(--color-text-primary)'
+}
+
+function setupTitleColorPicker(): void {
+  const btn = document.getElementById('title-color-btn')
+  const titleInput = document.getElementById('page-title') as HTMLInputElement
+  if (!btn || !titleInput) return
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+
+    // Remove existing popover
+    document.getElementById('title-color-popover')?.remove()
+
+    const popover = document.createElement('div')
+    popover.id = 'title-color-popover'
+    popover.className = 'title-color-popover'
+
+    TITLE_COLORS.forEach(({ label, value }) => {
+      const swatch = document.createElement('button')
+      swatch.className = 'title-color-swatch'
+      swatch.title = label
+      swatch.style.background = value || 'transparent'
+      if (!value) {
+        swatch.classList.add('title-color-swatch--default')
+        swatch.textContent = '✕'
+      }
+      if (titleInput.style.color === value) swatch.classList.add('active')
+
+      swatch.addEventListener('click', (ev) => {
+        ev.stopPropagation()
+        titleInput.style.color = value
+        applyTitleColorIndicator(value)
+        popover.remove()
+        scheduleAutoSave()
+      })
+      popover.appendChild(swatch)
+    })
+
+    document.body.appendChild(popover)
+
+    // Position below the button, clamped so it never goes off-screen to the right
+    const rect = btn.getBoundingClientRect()
+    const popoverWidth = popover.getBoundingClientRect().width || 160
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 8))
+    popover.style.top = `${rect.bottom + 6}px`
+    popover.style.left = `${left}px`
+
+    // Close on outside click
+    const close = (ev: MouseEvent) => {
+      if (!popover.contains(ev.target as Node)) {
+        popover.remove()
+        document.removeEventListener('click', close)
+      }
+    }
+    setTimeout(() => document.addEventListener('click', close), 0)
+  })
 }

@@ -6,6 +6,7 @@ import { initProfileModal, setupProfileButton } from './profile'
 import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
 import { initPageList, initDarkMode, initReadMode } from './ui'
 import { initNotepad, showNotepadTab, hideNotepadTab } from './notepad'
+import { initToolbox, showToolboxTab, hideToolboxTab } from './toolbox'
 import { initTimer } from './timer'
 import { initTodo } from './todo'
 import { initCalendar } from './calendar'
@@ -142,6 +143,8 @@ async function init(): Promise<void> {
   setupProfileButton()
   // Initialize notepad
   initNotepad()
+  // Initialize toolbox
+  initToolbox()
   // Initialize focus timer
   initTimer()
   // Initialize todo

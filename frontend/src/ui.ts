@@ -1,4 +1,4 @@
-import { getPages, createPage, updatePage } from './api'
+import { getPages, createPage, updatePage, getPreferences } from './api'
 import { appState } from './state'
 import type { Page, PageSelectCallback } from './types'
 import { showIconPicker } from './iconPicker'
@@ -201,6 +201,24 @@ async function loadPages(onPageSelect: PageSelectCallback) {
 
     if (mobileFavoritesList) {
       mobileFavoritesList.innerHTML = ''
+
+      // Dashboard item at top of favorites if enabled
+      const prefs = await getPreferences().catch(() => ({}))
+      if (prefs.dashboard_enabled ?? true) {
+        const homePage = allPages.find(p => p.page_type === 'home')
+        if (homePage) {
+          const dashItem = document.createElement('div')
+          dashItem.className = 'page-item' + (currentPageId === homePage.id ? ' active' : '')
+          dashItem.dataset.pageId = String(homePage.id)
+          dashItem.innerHTML = `<span style="margin-right:8px;font-size:16px">🏠</span><span class="page-title">Dashboard</span>`
+          dashItem.addEventListener('click', () => {
+            onPageSelect(homePage.id)
+            closeMobileMenu()
+          })
+          mobileFavoritesList.appendChild(dashItem)
+        }
+      }
+
       favorites.forEach(page => {
         const pageItem = createPageItem(page, onPageSelect)
         mobileFavoritesList.appendChild(pageItem)
@@ -327,32 +345,35 @@ function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLEleme
 }
 
 // Search functionality
-function searchInPageContent(page: Page, query: string): boolean {
-  if (page.title.toLowerCase().includes(query)) {
-    return true
+function getBlockText(block: any): string {
+  if (block.data.text) return block.data.text
+  if (block.data.items) {
+    return Array.isArray(block.data.items)
+      ? block.data.items.map((i: any) => (typeof i === 'string' ? i : i.content || '')).join(' ')
+      : ''
   }
+  if (block.data.code) return block.data.code
+  if (block.data.content && Array.isArray(block.data.content)) {
+    return block.data.content.flat().join(' ')
+  }
+  if (block.data.pageTitle) return block.data.pageTitle
+  return ''
+}
+
+function searchInPageContent(page: Page, query: string): string | true | false {
+  if (page.title.toLowerCase().includes(query)) return true
 
   if (page.content && page.content.blocks) {
     for (const block of page.content.blocks) {
-      let blockText = ''
-
-      if (block.data.text) {
-        blockText = block.data.text
-      } else if (block.data.items) {
-        blockText = block.data.items.join(' ')
-      } else if (block.data.code) {
-        blockText = block.data.code
-      } else if (block.data.content) {
-        if (Array.isArray(block.data.content)) {
-          blockText = block.data.content.flat().join(' ')
-        }
-      } else if (block.data.pageTitle) {
-        blockText = block.data.pageTitle
-      }
-
-      const strippedText = blockText.replace(/<[^>]*>/g, '').toLowerCase()
-      if (strippedText.includes(query)) {
-        return true
+      const raw = getBlockText(block)
+      const stripped = raw.replace(/<[^>]*>/g, '')
+      if (stripped.toLowerCase().includes(query)) {
+        // Return a short snippet around the match
+        const idx = stripped.toLowerCase().indexOf(query)
+        const start = Math.max(0, idx - 30)
+        const end = Math.min(stripped.length, idx + query.length + 50)
+        const snippet = (start > 0 ? '…' : '') + stripped.slice(start, end) + (end < stripped.length ? '…' : '')
+        return snippet
       }
     }
   }
@@ -384,15 +405,21 @@ function renderSearchResults(query: string, onPageSelect: PageSelectCallback) {
     return
   }
 
-  const matches = allPages.filter(page => searchInPageContent(page, query))
+  const matchResults: Array<{ page: Page; snippet: string | null }> = []
+  for (const page of allPages) {
+    const result = searchInPageContent(page, query)
+    if (result !== false) {
+      matchResults.push({ page, snippet: result === true ? null : result })
+    }
+  }
 
-  if (matches.length === 0) {
+  if (matchResults.length === 0) {
     searchResults.innerHTML = '<div class="search-no-results">No results found</div>'
     return
   }
 
   searchResults.innerHTML = ''
-  matches.forEach(page => {
+  matchResults.forEach(({ page, snippet }) => {
     const resultItem = document.createElement('div')
     resultItem.className = 'search-result-item'
 
@@ -406,6 +433,13 @@ function renderSearchResults(query: string, onPageSelect: PageSelectCallback) {
 
     resultItem.appendChild(title)
     resultItem.appendChild(path)
+
+    if (snippet) {
+      const snippetEl = document.createElement('div')
+      snippetEl.className = 'search-result-snippet'
+      snippetEl.textContent = snippet
+      resultItem.appendChild(snippetEl)
+    }
 
     resultItem.addEventListener('click', () => {
       closeMobileMenu()
