@@ -113,16 +113,22 @@ async function init(): Promise<void> {
   // Setup session handler
   setupSessionExpiredHandler()
 
-  // If not authenticated, stop here
   if (!authenticated) {
-    return
+    appState.isDemo = true
+    document.body.classList.add('demo-mode')
   }
 
-  // Hide welcome screen, show app content
-  const welcomeScreen = document.getElementById('welcome-screen')
-  const appContent = document.getElementById('app-content')
-  if (welcomeScreen) welcomeScreen.style.display = 'none'
-  if (appContent) appContent.classList.add('active')
+  await startApp()
+}
+
+async function startApp(): Promise<void> {
+  // In demo mode the welcome screen stays visible until the user opens a page
+  if (!appState.isDemo) {
+    const welcomeScreen = document.getElementById('welcome-screen')
+    const appContent = document.getElementById('app-content')
+    if (welcomeScreen) welcomeScreen.style.display = 'none'
+    if (appContent) appContent.classList.add('active')
+  }
 
   // Initialize editor
   initEditor(scheduleAutoSave, updateUndoRedoButtons)
@@ -151,8 +157,10 @@ async function init(): Promise<void> {
   initTodo()
   // Initialize calendar
   initCalendar()
-  // Load home page
-  await navigateToHomePage()
+  // Load home page (not in demo mode — welcome screen is the start)
+  if (!appState.isDemo) {
+    await navigateToHomePage()
+  }
 }
 
 // Start application

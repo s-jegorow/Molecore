@@ -108,6 +108,14 @@ function updateHeaderImage(headerPath: string | null | undefined) {
  * Load a page by ID and render it in the editor
  */
 export async function loadPage(pageId: number) {
+  // In demo mode, switch from landing page to app on first page load
+  if (appState.isDemo) {
+    const welcomeScreen = document.getElementById('welcome-screen')
+    const appContent = document.getElementById('app-content')
+    if (welcomeScreen) welcomeScreen.style.display = 'none'
+    if (appContent) appContent.classList.add('active')
+  }
+
   try {
     const page = await getPage(pageId)
 
@@ -164,6 +172,15 @@ export async function loadPage(pageId: number) {
  * Navigate to the home page
  */
 export async function navigateToHomePage(): Promise<void> {
+  if (appState.isDemo) {
+    // In demo mode, "home" means back to the landing page
+    const welcomeScreen = document.getElementById('welcome-screen')
+    const appContent = document.getElementById('app-content')
+    if (welcomeScreen) welcomeScreen.style.display = ''
+    if (appContent) appContent.classList.remove('active')
+    return
+  }
+
   try {
     const [allPages, prefs] = await Promise.all([getPages(), getPreferences().catch(() => ({}))])
     const dashboardEnabled = prefs.dashboard_enabled ?? true

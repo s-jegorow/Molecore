@@ -2166,6 +2166,13 @@ body.read-mode .ce-inline-toolbar {
   display: none !important;
 }
 
+body.demo-mode .sync-indicator { display: none; }
+
+body.read-mode .ce-block [contenteditable] {
+  pointer-events: none;
+  cursor: default;
+}
+
 body.read-mode main {
   /* full width in both modes */
 }
@@ -3383,10 +3390,16 @@ body.dark-mode.grain-enabled .app-grain {
   header {
     padding: var(--spacing-3xl) var(--spacing-3xl) var(--spacing-3xl) var(--spacing-3xl);
     padding-top: var(--spacing-3xl);
+    min-height: 120px;
   }
 
   main {
     padding: var(--spacing-3xl) var(--spacing-3xl) calc(60px + var(--spacing-3xl)) var(--spacing-3xl);
+  }
+
+  #redo-btn,
+  .sync-indicator {
+    display: none;
   }
 }
 

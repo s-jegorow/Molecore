@@ -10,6 +10,7 @@ class AppState {
   private _undoManager: UndoManager | null = null
   private _autoSaveTimeout: number | null = null
   private _isSaving: boolean = false
+  isDemo: boolean = false
 
   get currentPageId(): number | null {
     return this._currentPageId
