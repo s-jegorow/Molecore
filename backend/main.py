@@ -2,6 +2,7 @@ import asyncio
 import io as _io
 import json
 import os
+import random
 import sys as _sys
 import time
 import secrets
@@ -15,13 +16,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from pathlib import Path
 from database import engine, get_db, Base
 from models import Page, UserPreferences, CalendarEvent
 from auth import get_current_user
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
+
+
+def serialize_page(page: Page) -> Page:
+    """Deserialize page content from JSON string and convert datetimes to ISO strings."""
+    if isinstance(page.content, str):
+        try:
+            page.content = json.loads(page.content)
+        except (json.JSONDecodeError, TypeError):
+            page.content = {"blocks": []}
+    page.created_at = page.created_at.isoformat()
+    page.updated_at = page.updated_at.isoformat()
+    return page
 
 app = FastAPI(title="nx API")
 
@@ -159,15 +171,8 @@ def get_pages(
         db.refresh(home_page)
         pages = [home_page]
 
-    # Convert content from JSON string to dict & datetime to string
     for page in pages:
-        if isinstance(page.content, str):
-            try:
-                page.content = json.loads(page.content)
-            except (json.JSONDecodeError, TypeError):
-                page.content = {"blocks": []}
-        page.created_at = page.created_at.isoformat()
-        page.updated_at = page.updated_at.isoformat()
+        serialize_page(page)
 
     return pages
 
@@ -188,16 +193,7 @@ def get_page(
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    # Convert content from JSON string to dict & datetime to string
-    if isinstance(page.content, str):
-        try:
-            page.content = json.loads(page.content)
-        except (json.JSONDecodeError, TypeError):
-            page.content = {"blocks": []}
-    page.created_at = page.created_at.isoformat()
-    page.updated_at = page.updated_at.isoformat()
-
-    return page
+    return serialize_page(page)
 
 @app.post("/api/pages", response_model=PageResponse)
 def create_page(
@@ -238,15 +234,7 @@ def create_page(
     db.commit()
     db.refresh(new_page)
 
-    # Convert content back to dict & datetime to string
-    try:
-        new_page.content = json.loads(new_page.content)
-    except (json.JSONDecodeError, TypeError):
-        new_page.content = {"blocks": []}
-    new_page.created_at = new_page.created_at.isoformat()
-    new_page.updated_at = new_page.updated_at.isoformat()
-
-    return new_page
+    return serialize_page(new_page)
 
 @app.put("/api/pages/{page_id}", response_model=PageResponse)
 def update_page(
@@ -305,15 +293,7 @@ def update_page(
     db.commit()
     db.refresh(page)
 
-    # Convert content back to dict & datetime to string
-    try:
-        page.content = json.loads(page.content)
-    except (json.JSONDecodeError, TypeError):
-        page.content = {"blocks": []}
-    page.created_at = page.created_at.isoformat()
-    page.updated_at = page.updated_at.isoformat()
-
-    return page
+    return serialize_page(page)
 
 @app.delete("/api/pages/{page_id}")
 def delete_page(
@@ -709,15 +689,7 @@ def get_notepad(
         db.commit()
         db.refresh(notepad)
 
-    if isinstance(notepad.content, str):
-        try:
-            notepad.content = json.loads(notepad.content)
-        except (json.JSONDecodeError, TypeError):
-            notepad.content = {"blocks": []}
-    notepad.created_at = notepad.created_at.isoformat()
-    notepad.updated_at = notepad.updated_at.isoformat()
-
-    return notepad
+    return serialize_page(notepad)
 
 
 # Todo Endpoint
@@ -753,15 +725,7 @@ def get_todo(
         db.commit()
         db.refresh(todo)
 
-    if isinstance(todo.content, str):
-        try:
-            todo.content = json.loads(todo.content)
-        except (json.JSONDecodeError, TypeError):
-            todo.content = {"blocks": []}
-    todo.created_at = todo.created_at.isoformat()
-    todo.updated_at = todo.updated_at.isoformat()
-
-    return todo
+    return serialize_page(todo)
 
 
 # Calendar Endpoints
@@ -847,6 +811,178 @@ def delete_calendar_event(
         raise HTTPException(status_code=404, detail="Event not found")
     db.delete(event)
     db.commit()
+    return {"ok": True}
+
+
+# ─── Demo Mode ────────────────────────────────────────────────────────────────
+
+from demo_content import DEMO_USER_ID, DEMO_PAGES_SEED
+
+
+def _serialize_demo_page(page: Page) -> dict:
+    content = page.content
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except (json.JSONDecodeError, TypeError):
+            content = {"blocks": []}
+    return {
+        "id": page.id,
+        "title": page.title,
+        "content": content,
+        "parent_id": page.parent_id,
+        "page_type": page.page_type,
+        "icon": page.icon,
+        "header": page.header,
+        "order": page.order,
+        "user_id": page.user_id,
+        "created_at": page.created_at.isoformat(),
+        "updated_at": page.updated_at.isoformat(),
+    }
+
+
+def seed_demo_pages(db: Session) -> None:
+    already_seeded = db.query(Page).filter(
+        Page.user_id == DEMO_USER_ID
+    ).first()
+    if already_seeded:
+        return
+    for pd in DEMO_PAGES_SEED:
+        db.add(Page(
+            title=pd["title"],
+            content=json.dumps(pd["content"]),
+            parent_id=None,
+            page_type=pd["page_type"],
+            icon=pd.get("icon"),
+            header=pd.get("header"),
+            order=pd["order"],
+            user_id=DEMO_USER_ID,
+        ))
+    db.commit()
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    db = next(get_db())
+    try:
+        seed_demo_pages(db)
+    finally:
+        db.close()
+
+
+@app.get("/api/demo/pages")
+def demo_get_pages(db: Session = Depends(get_db)):
+    pages = db.query(Page).filter(
+        Page.user_id == DEMO_USER_ID,
+        Page.page_type.notin_(["notepad", "todo"])
+    ).order_by(Page.order).all()
+    return [_serialize_demo_page(p) for p in pages]
+
+
+@app.get("/api/demo/pages/{page_id}")
+def demo_get_page(page_id: int, db: Session = Depends(get_db)):
+    page = db.query(Page).filter(
+        Page.id == page_id, Page.user_id == DEMO_USER_ID
+    ).first()
+    if not page:
+        return {
+            "id": page_id, "title": "Untitled", "content": {"blocks": []},
+            "parent_id": None, "page_type": "normal", "icon": None, "header": None,
+            "order": 0, "user_id": DEMO_USER_ID,
+            "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+        }
+    return _serialize_demo_page(page)
+
+
+@app.post("/api/demo/pages")
+def demo_create_page(page_data: PageCreate):
+    """Demo mode — return a fake page without persisting"""
+    return {
+        "id": random.randint(8000000, 8999999),
+        "title": page_data.title,
+        "content": page_data.content,
+        "parent_id": page_data.parent_id,
+        "page_type": page_data.page_type or "normal",
+        "icon": page_data.icon,
+        "header": None,
+        "order": page_data.order or 0,
+        "user_id": DEMO_USER_ID,
+        "created_at": "2024-01-01T00:00:00",
+        "updated_at": "2024-01-01T00:00:00",
+    }
+
+
+@app.put("/api/demo/pages/{page_id}")
+def demo_update_page(page_id: int, page_data: PageUpdate, db: Session = Depends(get_db)):
+    """Demo mode — return existing page unchanged"""
+    page = db.query(Page).filter(
+        Page.id == page_id, Page.user_id == DEMO_USER_ID
+    ).first()
+    if page:
+        return _serialize_demo_page(page)
+    return {
+        "id": page_id, "title": page_data.title or "Untitled",
+        "content": page_data.content or {"blocks": []},
+        "parent_id": page_data.parent_id, "page_type": page_data.page_type or "normal",
+        "icon": page_data.icon, "header": None, "order": page_data.order or 0,
+        "user_id": DEMO_USER_ID,
+        "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+    }
+
+
+@app.delete("/api/demo/pages/{page_id}")
+def demo_delete_page(page_id: int):
+    """Demo mode — no-op"""
+    return {"message": "Page deleted successfully"}
+
+
+@app.get("/api/demo/notepad")
+def demo_get_notepad():
+    return {
+        "id": 9999901, "title": "Notepad", "content": {"blocks": []},
+        "parent_id": None, "page_type": "notepad", "icon": "📝", "header": None,
+        "order": -1, "user_id": DEMO_USER_ID,
+        "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+    }
+
+
+@app.get("/api/demo/todo")
+def demo_get_todo():
+    return {
+        "id": 9999902, "title": "Todo", "content": {"blocks": []},
+        "parent_id": None, "page_type": "todo", "icon": "✅", "header": None,
+        "order": -2, "user_id": DEMO_USER_ID,
+        "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+    }
+
+
+@app.get("/api/demo/preferences")
+def demo_get_preferences():
+    return {"dashboard_enabled": False}
+
+
+@app.put("/api/demo/preferences")
+async def demo_update_preferences(request: Request):
+    return await request.json()
+
+
+@app.get("/api/demo/calendar")
+def demo_get_calendar():
+    return []
+
+
+@app.post("/api/demo/calendar")
+def demo_create_calendar_event(data: CalendarEventCreate):
+    return {"id": 9999903, "date": data.date, "title": data.title, "time": data.time, "color": data.color}
+
+
+@app.put("/api/demo/calendar/{event_id}")
+def demo_update_calendar_event(event_id: int, data: CalendarEventUpdate):
+    return {"id": event_id, "date": "2024-01-01", "title": data.title or "", "time": data.time, "color": data.color}
+
+
+@app.delete("/api/demo/calendar/{event_id}")
+def demo_delete_calendar_event(event_id: int):
     return {"ok": True}
 
 
