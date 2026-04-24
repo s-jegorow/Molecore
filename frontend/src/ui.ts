@@ -51,6 +51,16 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     }
   })
 
+  // Demo: back to start button
+  const demoBackBtn = document.getElementById('demo-back-btn')
+  if (demoBackBtn) {
+    demoBackBtn.addEventListener('click', async () => {
+      closeMobileMenu()
+      const { navigateToHomePage } = await import('./pages')
+      await navigateToHomePage()
+    })
+  }
+
   // Listen for icon updates
   window.addEventListener('iconUpdated', () => {
     loadPages(onPageSelect)

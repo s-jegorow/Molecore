@@ -116,6 +116,9 @@ export async function loadPage(pageId: number) {
     if (appContent) appContent.classList.add('active')
   }
 
+  setSyncIndicator('ok')
+  appState.suppressIdleUntil = Date.now() + 800
+
   try {
     const page = await getPage(pageId)
 
@@ -183,7 +186,7 @@ export async function navigateToHomePage(): Promise<void> {
 
   try {
     const [allPages, prefs] = await Promise.all([getPages(), getPreferences().catch(() => ({}))])
-    const dashboardEnabled = prefs.dashboard_enabled ?? true
+    const dashboardEnabled = (prefs as any).dashboard_enabled ?? true
 
     if (dashboardEnabled) {
       const homePage = allPages.find(p => p.page_type === 'home')
@@ -193,7 +196,6 @@ export async function navigateToHomePage(): Promise<void> {
       }
     }
 
-    // Dashboard disabled — load first favorite, fallback to first page
     const firstFavorite = allPages.find(p => p.page_type === 'favorite' && !p.parent_id)
     const firstPage = allPages.find(p => p.page_type !== 'home' && !p.parent_id)
     const target = firstFavorite || firstPage || allPages.find(p => p.page_type === 'home')
@@ -216,6 +218,7 @@ function setSyncIndicator(status: 'idle' | 'ok' | 'error') {
 
 async function autoSave() {
   if (!appState.currentPageId || !appState.editor) return
+  if (appState.isDemo) return
   if (appState.isSaving) return
 
   try {
@@ -241,6 +244,8 @@ async function autoSave() {
  * Schedule an auto-save with a debounce delay
  */
 export async function scheduleAutoSave(): Promise<void> {
+  if (appState.isDemo) return
+  if (Date.now() > appState.suppressIdleUntil) setSyncIndicator('idle')
   appState.clearAutoSaveTimeout()
 
   appState.autoSaveTimeout = window.setTimeout(() => {
@@ -257,6 +262,7 @@ export function setupHeaderUpload(): void {
     // Don't trigger if double-clicking on the title input
     if ((e.target as HTMLElement).id === 'page-title') return
     if (!appState.currentPageId) return
+    if (appState.isDemo) return
 
     const input = document.createElement('input')
     input.type = 'file'

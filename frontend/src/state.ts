@@ -11,6 +11,7 @@ class AppState {
   private _autoSaveTimeout: number | null = null
   private _isSaving: boolean = false
   isDemo: boolean = false
+  suppressIdleUntil: number = 0
 
   get currentPageId(): number | null {
     return this._currentPageId
