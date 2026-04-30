@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Notion → Molecore Import Script
+Notion -> Molecore Import Script
 
 Converts a Notion Markdown export (zip or directory) to Molecore pages via API.
 
 Usage:
-  python notion_importer.py export.zip --user sebastian --password SECRET
-  python notion_importer.py export.zip --user sebastian --password SECRET --parent-id 5
-  python notion_importer.py export.zip --user sebastian --password SECRET --api http://localhost:8000
+  python notion_importer.py export.zip --user YOUR_USER --password YOUR_PASSWORD --keycloak-url https://your-keycloak-server.com/realms/YOUR_REALM
+  python notion_importer.py export.zip --user YOUR_USER --password YOUR_PASSWORD --keycloak-url https://your-keycloak-server.com/realms/YOUR_REALM --parent-id 5
+  python notion_importer.py export.zip --user YOUR_USER --password YOUR_PASSWORD --keycloak-url https://your-keycloak-server.com/realms/YOUR_REALM --api http://localhost:8000
 """
 
 import os
@@ -23,26 +23,25 @@ import requests
 from pathlib import Path
 from typing import Optional
 
-# ─── Keycloak Auth ────────────────────────────────────────────────────────────
-
-KEYCLOAK_TOKEN_URL = "https://keycloak.sonic-reducer.de/realms/Nx/protocol/openid-connect/token"
-KEYCLOAK_CLIENT_ID = "nx-webapp"
+# --- Keycloak Auth ---
 
 class TokenManager:
     """Handles Keycloak login and automatic token refresh."""
 
-    def __init__(self, username: str, password: str):
+    def __init__(self, username: str, password: str, keycloak_url: str, client_id: str):
         self.username = username
         self.password = password
+        self.token_url = f"{keycloak_url.rstrip('/')}/protocol/openid-connect/token"
+        self.client_id = client_id
         self.access_token = None
         self.refresh_token = None
         self.expires_at = 0
         self._login()
 
     def _login(self):
-        resp = requests.post(KEYCLOAK_TOKEN_URL, data={
+        resp = requests.post(self.token_url, data={
             "grant_type": "password",
-            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_id": self.client_id,
             "username": self.username,
             "password": self.password,
         }, timeout=10)
@@ -53,9 +52,9 @@ class TokenManager:
         print(f"Logged in as: {self.username}")
 
     def _refresh(self):
-        resp = requests.post(KEYCLOAK_TOKEN_URL, data={
+        resp = requests.post(self.token_url, data={
             "grant_type": "refresh_token",
-            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_id": self.client_id,
             "refresh_token": self.refresh_token,
         }, timeout=10)
         if resp.status_code == 200:
@@ -681,8 +680,12 @@ def main():
     parser.add_argument('source', nargs='?', help='Notion export .zip file or extracted directory')
     parser.add_argument('--user', required=True, help='Molecore username')
     parser.add_argument('--password', required=True, help='Molecore password')
-    parser.add_argument('--api', default='https://molecore.sonic-reducer.de',
-                        help='Molecore API base URL (default: https://molecore.sonic-reducer.de)')
+    parser.add_argument('--keycloak-url', required=True,
+                        help='Keycloak realm URL (e.g. https://your-keycloak-server.com/realms/your-realm)')
+    parser.add_argument('--keycloak-client', default='molecore',
+                        help='Keycloak client ID (default: molecore)')
+    parser.add_argument('--api', default='http://localhost:8000',
+                        help='Molecore API base URL (default: http://localhost:8000)')
     parser.add_argument('--parent-id', type=int, default=None,
                         help='Import as children of this Molecore page ID (optional)')
     parser.add_argument('--delete', nargs='+', type=int, metavar='ID',
@@ -691,7 +694,7 @@ def main():
                         help='Delete pages in ID range (e.g. --delete-range 14 36)')
     args = parser.parse_args()
 
-    tm = TokenManager(args.user, args.password)
+    tm = TokenManager(args.user, args.password, args.keycloak_url, args.keycloak_client)
 
     # Handle cleanup
     if args.delete_range:

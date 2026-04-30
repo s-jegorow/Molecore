@@ -38,7 +38,7 @@ def serialize_page(page: Page) -> Page:
 app = FastAPI(title="nx API")
 
 # CORS for frontend
-_cors_origin = os.getenv("CORS_ORIGIN", "https://molecore.sonic-reducer.de")
+_cors_origin = os.getenv("CORS_ORIGINS", "http://localhost")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[_cors_origin],
