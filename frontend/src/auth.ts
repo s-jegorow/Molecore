@@ -32,6 +32,7 @@ export function login() {
 
 // Logout user and clear session
 export function logout() {
+  localStorage.clear()
   keycloak.logout()
 }
 

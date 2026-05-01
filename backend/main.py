@@ -35,7 +35,7 @@ def serialize_page(page: Page) -> Page:
     page.updated_at = page.updated_at.isoformat()
     return page
 
-app = FastAPI(title="nx API")
+app = FastAPI(title="Molecore API")
 
 # CORS for frontend
 _cors_origin = os.getenv("CORS_ORIGINS", "http://localhost")
@@ -53,7 +53,7 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 # Upload limits
-MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB per file
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB per file
 MAX_USER_STORAGE = 500 * 1024 * 1024  # 500 MB per user
 
 # Pydantic schemas for request/response
@@ -400,6 +400,7 @@ async def upload_file(
         ".exe", ".bat", ".cmd", ".sh", ".msi", ".com", ".pif", ".scr",
         ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".ps1", ".ps2",
         ".jar", ".app", ".deb", ".rpm", ".dmg", ".pkg", ".elf",
+        ".svg", ".html", ".htm", ".xml", ".xhtml",
     }
 
     # Validate file type based on upload_type
@@ -420,7 +421,7 @@ async def upload_file(
         size_mb = len(content) / 1024 / 1024
         raise HTTPException(
             status_code=413,
-            detail=f"File too large ({size_mb:.1f}MB). Maximum file size is 20MB."
+            detail=f"File too large ({size_mb:.1f}MB). Maximum file size is 50MB."
         )
 
     # Check user storage quota (500 MB)
@@ -433,30 +434,24 @@ async def upload_file(
             detail=f"Storage quota exceeded. Used: {used_mb:.1f}MB / {max_mb:.0f}MB"
         )
 
-    # Generate filename
-    timestamp = int(time.time())
+    # Generate filename with cryptographically random token to prevent URL guessing
     raw_filename = uploaded_file.filename or "upload"
     safe_filename = os.path.basename(raw_filename).replace(" ", "_")
+    random_token = secrets.token_hex(16)
 
     # Determine prefix based on upload_type
     if upload_type == "header":
-        prefix = "header"
-        new_filename = f"{prefix}_{timestamp}_{safe_filename}"
+        new_filename = f"header_{random_token}_{safe_filename}"
     elif upload_type == "icon":
-        prefix = "icon"
-        random_str = secrets.token_hex(6)
-        new_filename = f"{prefix}_{timestamp}_{random_str}_{safe_filename}"
+        new_filename = f"icon_{random_token}_{safe_filename}"
     elif upload_type == "audio":
-        prefix = "audio"
-        new_filename = f"{prefix}_{timestamp}_{safe_filename}"
+        new_filename = f"audio_{random_token}_{safe_filename}"
     elif upload_type == "file":
-        prefix = "file"
-        new_filename = f"{prefix}_{timestamp}_{safe_filename}"
+        new_filename = f"file_{random_token}_{safe_filename}"
     else:
         # Auto-detect based on file size (for images)
         prefix = "icon" if len(content) < 50000 else "image"
-        random_str = secrets.token_hex(6)
-        new_filename = f"{prefix}_{timestamp}_{random_str}_{safe_filename}"
+        new_filename = f"{prefix}_{random_token}_{safe_filename}"
 
     # Create user directory if it doesn't exist
     user_dir = UPLOAD_DIR / user_id
@@ -1038,8 +1033,13 @@ async def import_notion(
     # Extract ZIP before entering thread so we can raise HTTP errors cleanly
     tmpdir_obj = _tempfile.TemporaryDirectory()
     tmpdir = tmpdir_obj.name
+    _MAX_UNZIPPED_SIZE = 1024 * 1024 * 1024  # 1 GB decompressed limit
     try:
         with _zipfile.ZipFile(_io.BytesIO(content)) as zf:
+            total_uncompressed = sum(info.file_size for info in zf.infolist())
+            if total_uncompressed > _MAX_UNZIPPED_SIZE:
+                tmpdir_obj.cleanup()
+                raise HTTPException(status_code=400, detail="ZIP content too large when extracted (max 1 GB)")
             zf.extractall(tmpdir)
     except _zipfile.BadZipFile:
         tmpdir_obj.cleanup()

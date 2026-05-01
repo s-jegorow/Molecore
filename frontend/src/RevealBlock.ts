@@ -32,7 +32,7 @@ export default class RevealBlock {
       const textarea = document.createElement('div')
       textarea.classList.add('reveal-editor')
       textarea.contentEditable = 'true'
-      textarea.innerHTML = this.data.text || ''
+      textarea.value = this.data.text || ''
       textarea.dataset.placeholder = 'Hidden text...'
 
       textarea.addEventListener('input', () => {
@@ -49,7 +49,7 @@ export default class RevealBlock {
       // Read mode: click to reveal
       const hiddenText = document.createElement('div')
       hiddenText.classList.add('reveal-hidden')
-      hiddenText.innerHTML = this.data.text || ''
+      hiddenText.textContent = this.data.text || ''
 
       const overlay = document.createElement('div')
       overlay.classList.add('reveal-overlay')

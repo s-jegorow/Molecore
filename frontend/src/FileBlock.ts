@@ -2,6 +2,15 @@ import { Modal } from './Modal'
 import { API_URL } from './api'
 import { getToken } from './auth'
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export default class FileBlock {
   private api: any
   private readOnly: boolean
@@ -130,10 +139,10 @@ export default class FileBlock {
     fileDisplay.innerHTML = `
       <div class="file-icon">${icon}</div>
       <div class="file-info">
-        <div class="file-name">${this.data.fileName || 'Unknown File'}</div>
+        <div class="file-name">${escapeHtml(this.data.fileName || 'Unknown File')}</div>
         <div class="file-meta">${formattedSize}</div>
       </div>
-      <a href="${this.data.url}" download="${this.data.fileName}" class="file-download-btn" title="Download">
+      <a href="${escapeHtml(this.data.url || '')}" download="${escapeHtml(this.data.fileName || '')}" class="file-download-btn" title="Download">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>

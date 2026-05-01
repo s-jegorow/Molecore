@@ -2,6 +2,15 @@ import { Modal } from './Modal'
 import { API_URL } from './api'
 import { getToken } from './auth'
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export default class AudioBlock {
   private api: any
   private readOnly: boolean
@@ -130,7 +139,7 @@ export default class AudioBlock {
           </svg>
         </button>
         <div class="audio-info">
-          <div class="audio-filename">${this.data.fileName || 'Audio File'}</div>
+          <div class="audio-filename">${escapeHtml(this.data.fileName || 'Audio File')}</div>
           <div class="audio-time">
             <span class="audio-current">0:00</span> / <span class="audio-duration">0:00</span>
           </div>

@@ -118,6 +118,7 @@ export default class EmbedBlock {
     iframe.setAttribute('frameborder', '0')
     iframe.setAttribute('allowfullscreen', 'true')
     iframe.setAttribute('loading', 'lazy')
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups')
 
     embedContainer.appendChild(iframe)
 
