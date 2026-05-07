@@ -1,4 +1,4 @@
-# Molecore
+![Molecore Screenshot](molecorehero.png)
 
 **A minimalist, self-hosted workspace. Block-based, multi-user, no subscriptions, no cloud lock-in.**
 
@@ -11,8 +11,6 @@
 > No AI, no templates, no collaboration noise. Just your workspace.
 
 **[Live Demo](https://www.mymolecore.com)**
-
-![Molecore Screenshot](molecorehero.png)
 
 ---
 
