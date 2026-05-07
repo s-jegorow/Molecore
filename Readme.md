@@ -10,9 +10,9 @@
 > Built out of frustration with the overblown feature sets of tools like Notion and Obsidian.
 > No AI, no templates, no collaboration noise. Just your workspace.
 
-**[Live Demo](https://molecore.sonic-reducer.de)**
+**[Live Demo](https://www.mymolecore.com)**
 
-![Molecore Screenshot](molecorescreenshot.png)
+![Molecore Screenshot](molecorehero.png)
 
 ---
 
@@ -37,7 +37,8 @@ Molecore is self-hosted, runs entirely on your own infrastructure, and supports 
 - **Optional tools** - Notepad, Calendar, Focus Timer, To-Do List, Dashboard
 - **File uploads** with per-user quotas (20 MB per file, 500 MB per user)
 
----
+![Molecore Screenshot](molecorescreenshot.png)
+
 
 ## Tech Stack
 
