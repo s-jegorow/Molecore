@@ -1,7 +1,3 @@
-/**
- * Modal System for displaying alerts, confirmations, and custom content
- */
-
 export interface ModalOptions {
   title?: string
   message: string
@@ -23,7 +19,6 @@ class ModalManager {
   }
 
   private init() {
-    // Create modal container if it doesn't exist
     if (!this.container) {
       this.container = document.createElement('div')
       this.container.id = 'alert-modal-container'
@@ -32,9 +27,6 @@ class ModalManager {
     }
   }
 
-  /**
-   * Show a simple alert modal
-   */
   alert(message: string, title?: string): Promise<void> {
     return new Promise(async (resolve) => {
       await this.show({
@@ -48,9 +40,6 @@ class ModalManager {
     })
   }
 
-  /**
-   * Show a confirmation modal
-   */
   confirm(message: string, title?: string): Promise<boolean> {
     return new Promise(async (resolve) => {
       await this.show({
@@ -66,10 +55,6 @@ class ModalManager {
     })
   }
 
-  /**
-   * Show a confirmation modal with an optional checkbox below the message.
-   * Returns { confirmed, checked }.
-   */
   confirmWithCheckbox(
     message: string,
     checkboxLabel: string,
@@ -78,7 +63,6 @@ class ModalManager {
     return new Promise(async (resolve) => {
       const checkboxId = 'modal-checkbox-' + Math.random().toString(36).slice(2)
 
-      // Wait for any existing modal to close first
       if (this.closePromise) await this.closePromise
 
       const modal = document.createElement('div')
@@ -111,11 +95,16 @@ class ModalManager {
       const cancelBtn = modal.querySelector('.alert-modal-btn-cancel') as HTMLElement
       const checkbox = modal.querySelector(`#${checkboxId}`) as HTMLInputElement
 
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') handleCancel()
+      }
       const handleConfirm = () => {
+        document.removeEventListener('keydown', handleEscape)
         this.close()
         resolve({ confirmed: true, checked: checkbox.checked })
       }
       const handleCancel = () => {
+        document.removeEventListener('keydown', handleEscape)
         this.close()
         resolve({ confirmed: false, checked: false })
       }
@@ -123,10 +112,6 @@ class ModalManager {
       confirmBtn.addEventListener('click', handleConfirm)
       cancelBtn.addEventListener('click', handleCancel)
       overlay.addEventListener('click', handleCancel)
-
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') { handleCancel(); document.removeEventListener('keydown', handleEscape) }
-      }
       document.addEventListener('keydown', handleEscape)
 
       this.container?.appendChild(modal)
@@ -135,9 +120,6 @@ class ModalManager {
     })
   }
 
-  /**
-   * Show a success message
-   */
   success(message: string, title?: string): Promise<void> {
     return new Promise(async (resolve) => {
       await this.show({
@@ -151,9 +133,6 @@ class ModalManager {
     })
   }
 
-  /**
-   * Show an error message
-   */
   error(message: string, title?: string): Promise<void> {
     return new Promise(async (resolve) => {
       await this.show({
@@ -167,11 +146,7 @@ class ModalManager {
     })
   }
 
-  /**
-   * Show a custom modal
-   */
   async show(options: ModalOptions) {
-    // Wait for any existing modal to fully close first
     if (this.closePromise) {
       await this.closePromise
     }
@@ -187,11 +162,9 @@ class ModalManager {
       showCancel = false
     } = options
 
-    // Create modal element
     const modal = document.createElement('div')
     modal.className = 'alert-modal'
 
-    // Get icon based on type
     const icon = this.getIcon(type)
 
     modal.innerHTML = `
@@ -213,35 +186,32 @@ class ModalManager {
       </div>
     `
 
-    // Add event listeners
     const overlay = modal.querySelector('.alert-modal-overlay') as HTMLElement
     const confirmBtn = modal.querySelector('.alert-modal-btn-confirm') as HTMLElement
     const cancelBtn = modal.querySelector('.alert-modal-btn-cancel') as HTMLElement
 
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCancel()
+    }
+
     const handleConfirm = () => {
+      document.removeEventListener('keydown', handleEscape)
       this.close()
       onConfirm?.()
     }
 
     const handleCancel = () => {
+      document.removeEventListener('keydown', handleEscape)
       this.close()
       onCancel?.()
     }
 
     confirmBtn.addEventListener('click', handleConfirm)
 
-    // Only allow overlay/escape to close for modals with cancel button (confirm dialogs)
-    // Success/Error/Info modals should only close via OK button
+    // info/success/error only close via ok
     if (showCancel) {
       overlay.addEventListener('click', handleCancel)
 
-      // Handle Escape key
-      const handleEscape = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          handleCancel()
-          document.removeEventListener('keydown', handleEscape)
-        }
-      }
       document.addEventListener('keydown', handleEscape)
     }
 
@@ -249,36 +219,29 @@ class ModalManager {
       cancelBtn.addEventListener('click', handleCancel)
     }
 
-    // Add to container
     this.container?.appendChild(modal)
     this.activeModal = modal
 
-    // Trigger animation
     requestAnimationFrame(() => {
       modal.classList.add('alert-modal-show')
     })
   }
 
-  /**
-   * Close the active modal
-   */
   close() {
-    if (this.activeModal) {
-      this.activeModal.classList.remove('alert-modal-show')
+    const modal = this.activeModal
+    if (modal) {
+      modal.classList.remove('alert-modal-show')
+      this.activeModal = null
       this.closePromise = new Promise((resolve) => {
         setTimeout(() => {
-          this.activeModal?.remove()
-          this.activeModal = null
+          modal.remove()
           this.closePromise = null
           resolve()
-        }, 300) // Match animation duration
+        }, 300)
       })
     }
   }
 
-  /**
-   * Get icon SVG based on modal type
-   */
   private getIcon(type: string): string {
     switch (type) {
       case 'success':
@@ -297,7 +260,7 @@ class ModalManager {
           <line x1="12" y1="9" x2="12" y2="13"/>
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>`
-      default: // info
+      default:
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
           <line x1="12" y1="16" x2="12" y2="12"/>
@@ -306,9 +269,6 @@ class ModalManager {
     }
   }
 
-  /**
-   * Escape HTML to prevent XSS
-   */
   private escapeHtml(text: string): string {
     const div = document.createElement('div')
     div.textContent = text
@@ -316,5 +276,4 @@ class ModalManager {
   }
 }
 
-// Export singleton instance
 export const Modal = new ModalManager()

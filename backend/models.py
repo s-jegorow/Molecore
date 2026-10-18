@@ -11,7 +11,7 @@ class UserPreferences(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, unique=True, index=True)
-    preferences = Column(Text, default='{}')  # JSON string
+    preferences = Column(Text, default='{}')
 
 
 class Page(Base):
@@ -19,17 +19,16 @@ class Page(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    content = Column(Text)  # JSON als String gespeichert
+    content = Column(Text)
     parent_id = Column(Integer, ForeignKey("pages.id"), nullable=True)
-    page_type = Column(String, default="normal")  # "home", "favorite", "normal", "template", etc.
-    icon = Column(String, nullable=True)  # Emoji oder Upload-Pfad (z.B. "📄" oder "/uploads/icon_1_image.png")
-    header = Column(String, nullable=True)  # Header-Bild Upload-Pfad (z.B. "/uploads/header_1_image.jpg")
+    page_type = Column(String, default="normal")
+    icon = Column(String, nullable=True)
+    header = Column(String, nullable=True)
     order = Column(Integer, default=0)
     user_id = Column(String, index=True)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
-    # Relationships
     parent = relationship("Page", remote_side=[id], backref="children")
 
 
@@ -38,7 +37,7 @@ class CalendarEvent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, index=True)
-    date = Column(String, index=True)  # YYYY-MM-DD
+    date = Column(String, index=True)
     title = Column(String)
     time = Column(String, nullable=True)
     color = Column(String, nullable=True, default="gray")

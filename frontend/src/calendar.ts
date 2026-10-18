@@ -1,4 +1,5 @@
-import { CalendarEvent, getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from './api'
+import { type CalendarEvent, getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from './api'
+import { escapeHtml } from './utils'
 
 const COLORS: { key: string; hex: string }[] = [
   { key: 'gray',   hex: '#9ca3af' },
@@ -14,7 +15,7 @@ const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 
 let isOpen = false
 let year = new Date().getFullYear()
-let month = new Date().getMonth()  // 0-indexed
+let month = new Date().getMonth()
 let selectedDate: string | null = null
 let monthEvents: CalendarEvent[] = []
 
@@ -54,7 +55,7 @@ function renderMonth() {
   if (!content) return
 
   const firstDay = new Date(year, month, 1).getDay()
-  const offset = (firstDay + 6) % 7  // Mon=0
+  const offset = (firstDay + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const today = new Date()
   const todayStr = toDateStr(today.getFullYear(), today.getMonth() + 1, today.getDate())
@@ -133,8 +134,8 @@ function renderDay(date: string, editingId: number | null) {
             ${ev.time ? `<span class="cal-event-time">${escapeHtml(ev.time)}</span>` : ''}
           </div>
           <div class="cal-event-actions">
-            <button class="cal-icon-btn cal-edit-btn" data-id="${ev.id}" title="Bearbeiten">✎</button>
-            <button class="cal-icon-btn cal-delete-btn" data-id="${ev.id}" title="Löschen">&times;</button>
+            <button class="cal-icon-btn cal-edit-btn" data-id="${ev.id}" title="Edit">✎</button>
+            <button class="cal-icon-btn cal-delete-btn" data-id="${ev.id}" title="Delete">&times;</button>
           </div>
         </div>
       `
@@ -189,7 +190,6 @@ function renderDay(date: string, editingId: number | null) {
     })
   })
 
-  // Color picker
   let selectedColor = formColor
   content.querySelectorAll<HTMLElement>('.cal-color-pick').forEach(dot => {
     dot.addEventListener('click', () => {
@@ -233,10 +233,6 @@ function toDateStr(y: number, m: number, d: number): string {
 
 function colorHex(key: string | null): string {
   return COLORS.find(c => c.key === key)?.hex || COLORS[0].hex
-}
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 export function showCalendarTab() {

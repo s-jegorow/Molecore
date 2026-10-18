@@ -1,21 +1,18 @@
 import './style.css'
 import { appState } from './state'
 import { initEditor, performUndo, performRedo, canUndo, canRedo } from './editor'
-import { loadPage, navigateToHomePage, scheduleAutoSave, setupHeaderUpload, setupPageTitleHandler, setupFavoriteButton, setupPageEventListeners } from './pages'
-import { initProfileModal, setupProfileButton } from './profile'
+import { loadPage, navigateToHomePage, scheduleAutoSave, setupPageEventListeners } from './pages'
+import { initProfileModal } from './profile'
 import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
 import { initPageList, initDarkMode, initReadMode } from './ui'
-import { initNotepad, showNotepadTab, hideNotepadTab } from './notepad'
-import { initToolbox, showToolboxTab, hideToolboxTab } from './toolbox'
+import { initNotepad } from './notepad'
+import { initToolbox } from './toolbox'
 import { initTimer } from './timer'
 import { initTodo } from './todo'
 import { initCalendar } from './calendar'
 import { Modal } from './Modal'
 import { login } from './auth'
 
-/**
- * Update undo/redo button states
- */
 function updateUndoRedoButtons(): void {
   const undoBtn = document.getElementById('undo-btn')
   const redoBtn = document.getElementById('redo-btn')
@@ -28,9 +25,6 @@ function updateUndoRedoButtons(): void {
   }
 }
 
-/**
- * Setup undo/redo buttons
- */
 function setupUndoRedo(): void {
   const undoBtn = document.getElementById('undo-btn')
   const redoBtn = document.getElementById('redo-btn')
@@ -53,64 +47,40 @@ function setupUndoRedo(): void {
     })
   }
 
-  // Keyboard shortcuts
-  document.addEventListener('keydown', async (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
-      e.preventDefault()
-      if (canUndo()) {
-        await performUndo()
-        updateUndoRedoButtons()
-      }
-    }
+  window.addEventListener('undoStateChanged', updateUndoRedoButtons)
 
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') {
-      e.preventDefault()
+  document.addEventListener('keydown', async (e: KeyboardEvent) => {
+    if (!(e.ctrlKey || e.metaKey) || e.code !== 'KeyZ') return
+    const target = e.target as HTMLElement | null
+    if (target && !target.closest('#editor') && (target.closest('input, textarea') || target.isContentEditable)) return
+
+    e.preventDefault()
+    if (e.shiftKey) {
       if (canRedo()) {
         await performRedo()
         updateUndoRedoButtons()
       }
+    } else if (canUndo()) {
+      await performUndo()
+      updateUndoRedoButtons()
     }
   })
 }
 
-/**
- * Setup session expiration handler
- */
 function setupSessionExpiredHandler(): void {
   window.addEventListener('sessionExpired', (async () => {
-    // Try to save current content before redirecting
-    if (appState.editor && appState.currentPageId) {
-      try {
-        const content = await appState.editor.save()
-        localStorage.setItem('unsavedContent', JSON.stringify({
-          pageId: appState.currentPageId,
-          content,
-          timestamp: Date.now()
-        }))
-      } catch (e) {
-        // Ignore save errors
-      }
-    }
-
-    // Show modal and redirect to login
     await Modal.error('Your session has expired. Please log in again.')
     login()
   }) as EventListener)
 }
 
-/**
- * Main initialization
- */
 async function init(): Promise<void> {
-  // Initialize authentication
   const authenticated = await initKeycloak()
   updateAuthUI(authenticated)
   initAuthUI()
 
-  // Initialize dark mode
   initDarkMode()
 
-  // Setup session handler
   setupSessionExpiredHandler()
 
   if (!authenticated) {
@@ -122,7 +92,6 @@ async function init(): Promise<void> {
 }
 
 async function startApp(): Promise<void> {
-  // In demo mode the welcome screen stays visible until the user opens a page
   if (!appState.isDemo) {
     const welcomeScreen = document.getElementById('welcome-screen')
     const appContent = document.getElementById('app-content')
@@ -130,38 +99,23 @@ async function startApp(): Promise<void> {
     if (appContent) appContent.classList.add('active')
   }
 
-  // Initialize editor
   initEditor(scheduleAutoSave, updateUndoRedoButtons)
 
-  // Initialize page list
   initPageList(loadPage)
 
-  // Initialize profile modal
   initProfileModal()
 
-  // Setup buttons and handlers
   setupUndoRedo()
   initReadMode()
-  setupHeaderUpload()
-  setupPageTitleHandler()
-  setupFavoriteButton()
   setupPageEventListeners()
-  setupProfileButton()
-  // Initialize notepad
   initNotepad()
-  // Initialize toolbox
   initToolbox()
-  // Initialize focus timer
   initTimer()
-  // Initialize todo
   initTodo()
-  // Initialize calendar
   initCalendar()
-  // Load home page (not in demo mode — welcome screen is the start)
   if (!appState.isDemo) {
     await navigateToHomePage()
   }
 }
 
-// Start application
 init()

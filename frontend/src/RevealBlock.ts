@@ -1,5 +1,4 @@
 export default class RevealBlock {
-  private api: any
   private readOnly: boolean
   private data: {
     text?: string
@@ -7,8 +6,7 @@ export default class RevealBlock {
   private wrapper: HTMLElement | null = null
   private revealed: boolean = false
 
-  constructor({ data, api, readOnly }: any) {
-    this.api = api
+  constructor({ data, readOnly }: any) {
     this.readOnly = readOnly
     this.data = data || {}
   }
@@ -28,11 +26,10 @@ export default class RevealBlock {
     contentArea.classList.add('reveal-content')
 
     if (!this.readOnly) {
-      // Edit mode: show editable textarea
       const textarea = document.createElement('div')
       textarea.classList.add('reveal-editor')
       textarea.contentEditable = 'true'
-      textarea.value = this.data.text || ''
+      textarea.innerHTML = this.data.text || ''
       textarea.dataset.placeholder = 'Hidden text...'
 
       textarea.addEventListener('input', () => {
@@ -46,10 +43,9 @@ export default class RevealBlock {
       contentArea.appendChild(label)
       contentArea.appendChild(textarea)
     } else {
-      // Read mode: click to reveal
       const hiddenText = document.createElement('div')
       hiddenText.classList.add('reveal-hidden')
-      hiddenText.textContent = this.data.text || ''
+      hiddenText.innerHTML = this.data.text || ''
 
       const overlay = document.createElement('div')
       overlay.classList.add('reveal-overlay')
@@ -78,5 +74,21 @@ export default class RevealBlock {
     return {
       text: this.data.text || ''
     }
+  }
+
+  static get sanitize(): any {
+    return {
+      text: {
+        br: true,
+        b: true,
+        i: true,
+        u: true,
+        div: true
+      }
+    }
+  }
+
+  static get isReadOnlySupported() {
+    return true
   }
 }

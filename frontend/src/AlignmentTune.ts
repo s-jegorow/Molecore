@@ -46,7 +46,6 @@ export default class AlignmentTune {
 
       button.addEventListener('pointerdown', (e: Event) => {
         e.stopPropagation()
-        // Toggle off if already active
         this.data.alignment = this.data.alignment === align.value ? '' : align.value
         this.applyAlignment()
 

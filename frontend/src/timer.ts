@@ -1,12 +1,11 @@
-// State
 let isOpen = false
 let running = false
 let intervalId: ReturnType<typeof setInterval> | null = null
 let secondsLeft = 0
+let endAt = 0
 let sessionType: 'focus' | 'short_break' | 'long_break' = 'focus'
 let sessionCount = 0
 
-// Settings
 let mode: 'single' | 'cycle' = 'single'
 let focusMins = 25
 let shortBreakMins = 5
@@ -118,12 +117,14 @@ function startTimer() {
     updateDisplay()
   }
   running = true
+  endAt = Date.now() + secondsLeft * 1000
   const startBtn = document.getElementById('timer-start-btn')
   if (startBtn) startBtn.textContent = 'Pause'
-  intervalId = setInterval(tick, 1000)
+  intervalId = setInterval(tick, 250)
 }
 
 function pauseTimer() {
+  if (running) secondsLeft = Math.max(0, Math.ceil((endAt - Date.now()) / 1000))
   running = false
   const startBtn = document.getElementById('timer-start-btn')
   if (startBtn) startBtn.textContent = 'Start'
@@ -144,8 +145,11 @@ function resetTimer() {
 }
 
 function tick() {
-  secondsLeft--
-  updateDisplay()
+  const remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000))
+  if (remaining !== secondsLeft) {
+    secondsLeft = remaining
+    updateDisplay()
+  }
   if (secondsLeft <= 0) onSessionEnd()
 }
 
@@ -155,7 +159,6 @@ function onSessionEnd() {
 
   if (mode === 'single') return
 
-  // Cycle mode: advance to next phase
   if (sessionType === 'focus') {
     sessionCount++
     updateDots()
@@ -219,7 +222,6 @@ function playDing() {
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + 1.0)
   } catch (_e) {
-    // AudioContext not available
   }
 }
 

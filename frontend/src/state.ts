@@ -1,15 +1,10 @@
 import EditorJS from '@editorjs/editorjs'
 import { UndoManager } from './UndoManager'
 
-/**
- * Central application state management
- */
 class AppState {
   private _currentPageId: number | null = null
   private _editor: EditorJS | null = null
   private _undoManager: UndoManager | null = null
-  private _autoSaveTimeout: number | null = null
-  private _isSaving: boolean = false
   isDemo: boolean = false
   suppressIdleUntil: number = 0
 
@@ -35,37 +30,6 @@ class AppState {
 
   set undoManager(manager: UndoManager | null) {
     this._undoManager = manager
-  }
-
-  get autoSaveTimeout(): number | null {
-    return this._autoSaveTimeout
-  }
-
-  set autoSaveTimeout(timeout: number | null) {
-    this._autoSaveTimeout = timeout
-  }
-
-  get isSaving(): boolean {
-    return this._isSaving
-  }
-
-  set isSaving(saving: boolean) {
-    this._isSaving = saving
-  }
-
-  clearAutoSaveTimeout(): void {
-    if (this._autoSaveTimeout !== null) {
-      clearTimeout(this._autoSaveTimeout)
-      this._autoSaveTimeout = null
-    }
-  }
-
-  reset(): void {
-    this._currentPageId = null
-    this._editor = null
-    this._undoManager = null
-    this._isSaving = false
-    this.clearAutoSaveTimeout()
   }
 }
 

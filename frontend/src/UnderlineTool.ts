@@ -1,8 +1,7 @@
 export default class UnderlineTool {
   private api: any
-  private button: HTMLElement | null = null
+  private button: HTMLButtonElement | null = null
   private tag: string = 'U'
-  private class: string = 'cdx-underline'
 
   static get isInline() {
     return true
@@ -38,7 +37,7 @@ export default class UnderlineTool {
     range.insertNode(u)
   }
 
-  checkState(selection: Selection) {
+  checkState(_selection: Selection) {
     const u = this.api.selection.findParentTag(this.tag)
     if (this.button) {
       this.button.classList.toggle('ce-inline-tool--active', !!u)

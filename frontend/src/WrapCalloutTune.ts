@@ -1,18 +1,5 @@
-/**
- * WrapCalloutTune – adds "→ Callout" to every block's settings menu.
- * When activated, inserts a CalloutBlock header before the current block
- * (or before the first selected block) and marks the selected blocks
- * with data-callout-fk so they become callout children.
- *
- * NOTE: EditorJS clears multi-block selection when the settings menu opens,
- * so we capture the selection in the constructor (when the tune is created).
- */
-
 import { applyCalloutForeignKeys } from './CalloutBlock'
-
-function uid(): string {
-  return 'callout-' + Math.random().toString(36).slice(2, 10)
-}
+import { uid } from './utils'
 
 export default class WrapCalloutTune {
   private api: any
@@ -27,9 +14,7 @@ export default class WrapCalloutTune {
     this.api = api
     this.block = block
 
-    // Capture selected blocks NOW — EditorJS clears the selection
-    // when the settings popover opens, so by the time onActivate runs
-    // the .ce-block--selected class is already gone.
+    // grab the selection here, editorjs clears it once the settings popover opens
     const selectedEls = document.querySelectorAll('.ce-block--selected')
     if (selectedEls.length > 1) {
       for (let j = 0; j < selectedEls.length; j++) {
@@ -53,16 +38,14 @@ export default class WrapCalloutTune {
   }
 
   private _wrapInCallout() {
-    const fk = uid()
+    const fk = uid('callout')
     const color = 'blue'
 
     let indices: number[]
 
     if (this.selectedIndices.length > 0) {
-      // Multi-block selection captured in constructor
       indices = this.selectedIndices
     } else {
-      // Just this single block
       const idx = this.api.blocks.getBlockIndex(this.block.id)
       if (idx < 0) return
       indices = [idx]
@@ -73,15 +56,12 @@ export default class WrapCalloutTune {
     const firstIdx = Math.min(...indices)
     const count = indices.length
 
-    // Insert callout header block BEFORE the first selected block
     this.api.blocks.insert('callout', {
       fk,
       items: count,
       color,
     }, undefined, firstIdx, false)
 
-    // The MutationObserver in CalloutBlock will auto-apply styling,
-    // but also trigger it explicitly for immediate visual feedback
     setTimeout(() => applyCalloutForeignKeys(), 100)
     setTimeout(() => applyCalloutForeignKeys(), 400)
   }

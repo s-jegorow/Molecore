@@ -18,8 +18,7 @@
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": false,
-    "skipLibCheck": true
+    "noFallthroughCasesInSwitch": false
   },
   "include": ["src"]
 }

@@ -1,7 +1,3 @@
-/**
- * Paragraph Tool das leere Blöcke erlaubt
- * Basiert auf @editorjs/paragraph aber ohne Validierung
- */
 export default class ParagraphWithBlanks {
   private _element: HTMLDivElement
   private _data: { text: string }
@@ -60,7 +56,7 @@ export default class ParagraphWithBlanks {
     }
   }
 
-  static get sanitize() {
+  static get sanitize(): any {
     return {
       text: {
         br: true,
@@ -68,7 +64,11 @@ export default class ParagraphWithBlanks {
         i: true,
         u: true,
         s: true,
-        a: true,
+        a: {
+          href: true,
+          target: true,
+          rel: true
+        },
         mark: true,
         code: true
       }
@@ -92,8 +92,8 @@ export default class ParagraphWithBlanks {
     }
   }
 
-  // KRITISCH: validate gibt IMMER true zurück - behält leere Blöcke
-  static validate(savedData: any): boolean {
+  // always true so empty paragraphs survive saving
+  static validate(_savedData: any): boolean {
     return true
   }
 }

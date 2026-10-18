@@ -1,9 +1,9 @@
 import { PDFDocument, degrees } from 'pdf-lib'
 import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import { escapeHtml } from './utils'
 
-// Load the worker from CDN to avoid build complexity
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.mjs`
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 export function mountPdfTool(id: string, container: HTMLElement) {
   switch (id) {
@@ -13,8 +13,6 @@ export function mountPdfTool(id: string, container: HTMLElement) {
     case 'topng':  mountPdfToPng(container);  break
   }
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function pdfDropZoneHTML(id: string, label: string, multiple = false): string {
   return `
@@ -37,7 +35,7 @@ function downloadPdfBytes(bytes: Uint8Array, filename: string) {
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function setStatus(container: HTMLElement, id: string, msg: string, type: 'info' | 'error' | 'success' = 'info') {
@@ -47,8 +45,6 @@ function setStatus(container: HTMLElement, id: string, msg: string, type: 'info'
   el.className = `toolbox-status toolbox-status-${type}`
   el.style.display = msg ? 'block' : 'none'
 }
-
-// ─── Merge PDF ───────────────────────────────────────────────────────────────
 
 function mountMergePdf(container: HTMLElement) {
   container.innerHTML = `
@@ -78,7 +74,7 @@ function mountMergePdf(container: HTMLElement) {
     btn.style.display = 'flex'
     listEl.innerHTML = files.map((f, i) => `
       <div class="toolbox-file-item">
-        <span class="toolbox-file-name">${f.name}</span>
+        <span class="toolbox-file-name">${escapeHtml(f.name)}</span>
         <button class="toolbox-file-remove" data-i="${i}">✕</button>
       </div>
     `).join('')
@@ -116,8 +112,6 @@ function mountMergePdf(container: HTMLElement) {
     btn.textContent = 'Merge & Download'
   })
 }
-
-// ─── Split PDF ────────────────────────────────────────────────────────────────
 
 function mountSplitPdf(container: HTMLElement) {
   container.innerHTML = `
@@ -197,8 +191,6 @@ function parsePageRange(input: string, total: number): number[] {
   }
   return Array.from(pages).sort((a, b) => a - b)
 }
-
-// ─── Rotate PDF ───────────────────────────────────────────────────────────────
 
 function mountRotatePdf(container: HTMLElement) {
   container.innerHTML = `
@@ -284,8 +276,6 @@ function mountRotatePdf(container: HTMLElement) {
   })
 }
 
-// ─── PDF to PNG ───────────────────────────────────────────────────────────────
-
 function mountPdfToPng(container: HTMLElement) {
   container.innerHTML = `
     ${pdfDropZoneHTML('tb-topng-input', 'Drop a PDF or click to select')}
@@ -363,7 +353,7 @@ function mountPdfToPng(container: HTMLElement) {
         a.href = url
         a.download = `page_${pageNum}.png`
         a.click()
-        URL.revokeObjectURL(url)
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
       }, 'image/png')
 
       setStatus(container, 'tb-topng-status', `Page ${pageNum} converted.`, 'success')

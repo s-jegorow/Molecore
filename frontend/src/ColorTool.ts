@@ -1,24 +1,14 @@
+import { SPAN_SANITIZE } from './utils'
+
 export default class ColorTool {
-  private api: any
-  private button: HTMLElement | null = null
-  private tag: string = 'SPAN'
-  private class: string = 'cdx-color'
+  private button: HTMLButtonElement | null = null
 
   static get isInline() {
     return true
   }
 
   static get sanitize() {
-    return {
-      span: {
-        style: true,
-        class: true
-      }
-    }
-  }
-
-  constructor({ api }: any) {
-    this.api = api
+    return { ...SPAN_SANITIZE }
   }
 
   render() {
@@ -47,7 +37,6 @@ export default class ColorTool {
     const selectedText = range.toString()
     if (!selectedText) return
 
-    // Create color picker popup
     const popup = document.createElement('div')
     popup.classList.add('color-picker-popup')
     popup.style.cssText = `
@@ -108,14 +97,12 @@ export default class ColorTool {
       popup.appendChild(colorBtn)
     })
 
-    // Position popup near selection
     const rect = range.getBoundingClientRect()
     popup.style.top = (rect.bottom + window.scrollY + 5) + 'px'
     popup.style.left = (rect.left + window.scrollX) + 'px'
 
     document.body.appendChild(popup)
 
-    // Close on outside click
     setTimeout(() => {
       const closeHandler = (e: MouseEvent) => {
         if (!popup.contains(e.target as Node)) {
@@ -141,17 +128,14 @@ export default class ColorTool {
     span.appendChild(range.extractContents())
     range.insertNode(span)
 
-    // Restore selection
     selection.removeAllRanges()
     selection.addRange(range)
   }
 
-  surround(range: Range) {
-    // Not used - we handle this in applyColor
+  surround(_range: Range) {
   }
 
   checkState() {
-    // Not used for this tool
     return false
   }
 

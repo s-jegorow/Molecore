@@ -32,9 +32,8 @@ export default class LinkTool {
     if (!range) return
 
     const selectedText = range.toString()
-    const link = document.createElement(this.tag)
+    const link = document.createElement(this.tag) as HTMLAnchorElement
 
-    // Create input for URL
     this.input = document.createElement('input')
     this.input.type = 'text'
     this.input.placeholder = 'Enter URL...'
@@ -50,7 +49,6 @@ export default class LinkTool {
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     `
 
-    // Position input near selection
     const rect = range.getBoundingClientRect()
     this.input.style.left = rect.left + 'px'
     this.input.style.top = (rect.bottom + 5) + 'px'
@@ -58,7 +56,6 @@ export default class LinkTool {
     document.body.appendChild(this.input)
     this.input.focus()
 
-    // Handle Enter key
     this.input.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault()
@@ -82,7 +79,6 @@ export default class LinkTool {
       }
     })
 
-    // Handle clicking outside
     setTimeout(() => {
       const clickHandler = (e: MouseEvent) => {
         if (this.input && !this.input.contains(e.target as Node)) {

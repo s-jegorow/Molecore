@@ -1,13 +1,11 @@
-import { updatePage, API_URL } from './api'
+import { updatePage, uploadFile } from './api'
 import { Modal } from './Modal'
-import { getToken } from './auth'
 
 export async function showIconPicker(
   pageId: number,
   iconEl: HTMLElement,
   onUpdate?: () => void
 ) {
-  // Remove existing picker
   const existingPicker = document.querySelector('.icon-picker-popup')
   if (existingPicker) {
     existingPicker.remove()
@@ -32,7 +30,9 @@ export async function showIconPicker(
     padding: 16px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     z-index: 1000;
-    min-width: 400px;
+    min-width: min(400px, 90vw);
+    max-width: 95vw;
+    box-sizing: border-box;
     max-height: 500px;
     overflow-y: auto;
   `
@@ -49,14 +49,13 @@ export async function showIconPicker(
     margin-bottom: 12px;
   `
 
-  // Extended emoji list (100 emojis)
   const emojis = [
     '📄', '📁', '📝', '📊', '📈', '📉', '📌', '🔖', '🏷️', '📎',
     '🔗', '💡', '⚡', '🔥', '⭐', '❤️', '🎯', '🎨', '🎵', '🎮',
     '🏠', '🌟', '✨', '🚀', '💼', '📚', '🔧', '⚙️', '🛠️', '🔨',
     '📱', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '💾', '💿', '📀', '🧮',
     '🎬', '📷', '📹', '📺', '📻', '🎙️', '🎧', '🎤', '🎸', '🎹',
-    '🥁', '🎺', '🎷', '🪕', '🎻', '🎲', '🎯', '🎰', '🎳', '🏀',
+    '🥁', '🎺', '🎷', '🪕', '🎻', '🎲', '🧩', '🎰', '🎳', '🏀',
     '⚽', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀',
     '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🪃', '🥅', '⛳', '🪁',
     '🛝', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷',
@@ -88,12 +87,8 @@ export async function showIconPicker(
       popup.remove()
       backdrop.remove()
 
-      // Update icon element
-      iconEl.textContent = emoji
-      iconEl.innerHTML = ''
       iconEl.textContent = emoji
 
-      // Call optional callback
       if (onUpdate) {
         onUpdate()
       }
@@ -122,42 +117,25 @@ export async function showIconPicker(
       if (!file) return
 
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const token = await getToken()
-        const response = await fetch(`${API_URL}/api/upload`, {
-          method: 'POST',
-          headers: {
-            ...(token && { 'Authorization': `Bearer ${token}` })
-          },
-          body: formData
-        })
-
-        if (!response.ok) throw new Error('Upload failed')
-
-        const data = await response.json()
-        const iconPath = `${API_URL}${data.url}`
+        const iconPath = await uploadFile(file, 'icon')
 
         await updatePage(pageId, { icon: iconPath })
 
         popup.remove()
         backdrop.remove()
 
-        // Update icon element with image
         iconEl.innerHTML = ''
         const img = document.createElement('img')
         img.src = iconPath
         img.style.cssText = 'width: 16px; height: 16px; object-fit: cover; border-radius: 2px;'
         iconEl.appendChild(img)
 
-        // Call optional callback
         if (onUpdate) {
           onUpdate()
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to upload icon:', error)
-        await Modal.error('Failed to upload icon. Please try again.')
+        await Modal.error(error?.message || 'Failed to upload icon. Please try again.')
       }
     })
     input.click()
@@ -167,7 +145,6 @@ export async function showIconPicker(
   popup.appendChild(emojiGrid)
   popup.appendChild(uploadBtn)
 
-  // Backdrop
   const backdrop = document.createElement('div')
   backdrop.id = 'icon-picker-backdrop'
   backdrop.style.cssText = `

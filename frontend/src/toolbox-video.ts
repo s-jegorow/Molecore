@@ -1,4 +1,4 @@
-import { getFFmpeg, fetchFile } from './toolbox-ffmpeg'
+import { getFFmpeg, releaseFFmpeg, fetchFile, safeExt } from './toolbox-ffmpeg'
 
 export function mountVideoTool(id: string, container: HTMLElement) {
   switch (id) {
@@ -8,8 +8,6 @@ export function mountVideoTool(id: string, container: HTMLElement) {
     case 'convert':  mountVideoConvert(container);  break
   }
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function videoDropZone(id: string): string {
   return `
@@ -64,14 +62,12 @@ function downloadBlob(blob: Blob, filename: string) {
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function getExt(file: File): string {
-  return file.name.split('.').pop()?.toLowerCase() || 'mp4'
+  return safeExt(file, 'mp4')
 }
-
-// ─── Crop Video ───────────────────────────────────────────────────────────────
 
 function mountVideoCrop(container: HTMLElement) {
   container.innerHTML = `
@@ -127,10 +123,10 @@ function mountVideoCrop(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-vcrop-status', '', 'info')
     try {
+      showProgress(container, 'tb-vcrop-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-vcrop-progress', pct, `Processing… ${pct}%`)
       })
-      showProgress(container, 'tb-vcrop-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(file)
       const inName = `in.${ext}`
       const outName = `out.${ext}`
@@ -143,12 +139,12 @@ function mountVideoCrop(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-vcrop-progress')
       setStatus(container, 'tb-vcrop-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Rotate Video ─────────────────────────────────────────────────────────────
 
 function mountVideoRotate(container: HTMLElement) {
   container.innerHTML = `
@@ -193,10 +189,10 @@ function mountVideoRotate(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-vrot-status', '', 'info')
     try {
+      showProgress(container, 'tb-vrot-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-vrot-progress', pct, `Processing… ${pct}%`)
       })
-      showProgress(container, 'tb-vrot-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(file)
       await ffmpeg.writeFile(`in.${ext}`, await fetchFile(file))
       await ffmpeg.exec(['-i', `in.${ext}`, '-vf', filter, '-c:a', 'copy', `out.${ext}`])
@@ -207,12 +203,12 @@ function mountVideoRotate(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-vrot-progress')
       setStatus(container, 'tb-vrot-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Compress Video ───────────────────────────────────────────────────────────
 
 function mountVideoCompress(container: HTMLElement) {
   container.innerHTML = `
@@ -257,10 +253,10 @@ function mountVideoCompress(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-vcomp-status', '', 'info')
     try {
+      showProgress(container, 'tb-vcomp-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-vcomp-progress', pct, `Compressing… ${pct}%`)
       })
-      showProgress(container, 'tb-vcomp-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(file)
       await ffmpeg.writeFile(`in.${ext}`, await fetchFile(file))
       await ffmpeg.exec(['-i', `in.${ext}`, '-vcodec', 'libx264', '-crf', crf, '-preset', 'fast', '-acodec', 'copy', `out.${ext}`])
@@ -271,12 +267,12 @@ function mountVideoCompress(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-vcomp-progress')
       setStatus(container, 'tb-vcomp-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Format Changer ───────────────────────────────────────────────────────────
 
 function mountVideoConvert(container: HTMLElement) {
   container.innerHTML = `
@@ -322,10 +318,10 @@ function mountVideoConvert(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-vconv-status', '', 'info')
     try {
+      showProgress(container, 'tb-vconv-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-vconv-progress', pct, `Converting… ${pct}%`)
       })
-      showProgress(container, 'tb-vconv-progress', 0, 'Loading FFmpeg…')
       const inExt = getExt(file)
       const outName = `out.${fmt}`
       const mimeMap: Record<string, string> = {
@@ -340,6 +336,8 @@ function mountVideoConvert(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-vconv-progress')
       setStatus(container, 'tb-vconv-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })

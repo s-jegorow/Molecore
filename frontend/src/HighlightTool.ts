@@ -1,8 +1,5 @@
 export default class HighlightTool {
-  private api: any
-  private button: HTMLElement | null = null
-  private tag: string = 'MARK'
-  private class: string = 'cdx-highlight'
+  private button: HTMLButtonElement | null = null
 
   static get isInline() {
     return true
@@ -15,10 +12,6 @@ export default class HighlightTool {
         class: true
       }
     }
-  }
-
-  constructor({ api }: any) {
-    this.api = api
   }
 
   render() {
@@ -48,7 +41,6 @@ export default class HighlightTool {
     const selectedText = range.toString()
     if (!selectedText) return
 
-    // Create color picker popup
     const popup = document.createElement('div')
     popup.classList.add('highlight-picker-popup')
     popup.style.cssText = `
@@ -92,7 +84,6 @@ export default class HighlightTool {
       `
       colorBtn.title = color.name
 
-      // Show X for Remove option
       if (!color.bg && !color.text) {
         const removeIcon = document.createElement('span')
         removeIcon.textContent = '×'
@@ -126,14 +117,12 @@ export default class HighlightTool {
       popup.appendChild(colorBtn)
     })
 
-    // Position popup near selection
     const rect = range.getBoundingClientRect()
     popup.style.top = (rect.bottom + window.scrollY + 5) + 'px'
     popup.style.left = (rect.left + window.scrollX) + 'px'
 
     document.body.appendChild(popup)
 
-    // Close on outside click
     setTimeout(() => {
       const closeHandler = (e: MouseEvent) => {
         if (!popup.contains(e.target as Node)) {
@@ -153,7 +142,6 @@ export default class HighlightTool {
 
     const range = selection.getRangeAt(0)
 
-    // If no color (Remove option), unwrap any existing mark tags
     if (!bgColor && !textColor) {
       const selectedElement = range.commonAncestorContainer
       const parentMark = selectedElement.nodeType === Node.TEXT_NODE
@@ -185,17 +173,14 @@ export default class HighlightTool {
     mark.appendChild(range.extractContents())
     range.insertNode(mark)
 
-    // Restore selection
     selection.removeAllRanges()
     selection.addRange(range)
   }
 
-  surround(range: Range) {
-    // Not used - we handle this in applyHighlight
+  surround(_range: Range) {
   }
 
   checkState() {
-    // Not used for this tool
     return false
   }
 

@@ -1,10 +1,14 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
-import httpx
+import logging
 import os
 import time as _time
-from typing import Optional, Dict
+from typing import Dict, Optional
+
+import httpx
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+logger = logging.getLogger(__name__)
 
 KEYCLOAK_URL = os.environ["KEYCLOAK_SERVER_URL"]
 REALM = os.environ["KEYCLOAK_REALM"]
@@ -14,13 +18,19 @@ security = HTTPBearer()
 
 _jwks_cache: Optional[dict] = None
 _jwks_cache_time: float = 0
-_JWKS_TTL = 3600  # refresh keys every hour
+_JWKS_TTL = 3600
+_JWKS_MIN_REFRESH_INTERVAL = 30
+
 
 def get_jwks(force_refresh: bool = False) -> dict:
     global _jwks_cache, _jwks_cache_time
     now = _time.time()
-    if not force_refresh and _jwks_cache is not None and (now - _jwks_cache_time) < _JWKS_TTL:
-        return _jwks_cache
+    if _jwks_cache is not None:
+        age = now - _jwks_cache_time
+        if not force_refresh and age < _JWKS_TTL:
+            return _jwks_cache
+        if force_refresh and age < _JWKS_MIN_REFRESH_INTERVAL:
+            return _jwks_cache
 
     url = f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/certs"
     try:
@@ -30,90 +40,70 @@ def get_jwks(force_refresh: bool = False) -> dict:
         _jwks_cache_time = now
         return _jwks_cache
     except Exception as e:
-        print(f"JWKS fetch error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Authentication service unavailable"
-        )
-
-def get_public_key_for_token(token: str) -> str:
-    """Get the correct public key based on the token's kid (key ID)"""
-    try:
-        # Decode token header without verification to get kid
-        unverified_header = jwt.get_unverified_header(token)
-        kid = unverified_header.get("kid")
-
-        jwks = get_jwks()
-
-        if "keys" not in jwks:
-            raise Exception("No keys found in JWKS")
-
-        # Find the key with matching kid
-        key = None
-        for k in jwks["keys"]:
-            if k.get("kid") == kid:
-                key = k
-                break
-
-        if not key:
-            # Kid not found — may be a key rotation; try force-refreshing the cache
-            jwks = get_jwks(force_refresh=True)
-            for k in jwks["keys"]:
-                if k.get("kid") == kid:
-                    key = k
-                    break
-
-        if not key:
-            raise Exception(f"No key found with kid: {kid}")
-
-        from jose.backends import RSAKey
-        rsa_key = RSAKey(key, algorithm='RS256')
-        return rsa_key.to_pem().decode('utf-8')
-
-    except Exception as e:
-        print(f"Public key error: {e}")
+        logger.error("JWKS fetch error: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable"
         )
 
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
-    token = credentials.credentials
+def _find_key(jwks: dict, kid: Optional[str]) -> Optional[dict]:
+    for k in jwks.get("keys", []):
+        if k.get("kid") == kid:
+            return k
+    return None
 
+
+def get_public_key_for_token(token: str):
     try:
-        public_key = get_public_key_for_token(token)
-
-        payload = jwt.decode(
-            token,
-            public_key,
-            algorithms=["RS256"],
-            options={
-                "verify_signature": True,
-                "verify_aud": False,
-                "verify_exp": True,
-            }
-        )
-
-        # Verify the token was issued for our client (Keycloak uses azp)
-        azp = payload.get("azp")
-        if azp != CLIENT_ID:
-            raise JWTError("Token not issued for this client")
-
-        return payload
-
-    except JWTError as e:
+        kid = jwt.get_unverified_header(token).get("kid")
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except Exception as e:
+
+    key = _find_key(get_jwks(), kid)
+    if not key:
+        # unknown kid, probably key rotation -> refetch jwks once
+        key = _find_key(get_jwks(force_refresh=True), kid)
+    if not key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token validation failed",
+            detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    return jwt.PyJWK(key, algorithm="RS256").key
+
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict:
+    token = credentials.credentials
+    public_key = get_public_key_for_token(token)
+
+    try:
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            options={"verify_aud": False, "require": ["exp", "sub"]},
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # keycloak puts the client in azp, not aud
+    if payload.get("azp") != CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
 
 
 def get_current_user(token_payload: Dict = Depends(verify_token)) -> Dict:
@@ -126,15 +116,3 @@ def get_current_user(token_payload: Dict = Depends(verify_token)) -> Dict:
         "family_name": token_payload.get("family_name"),
         "roles": token_payload.get("realm_access", {}).get("roles", []),
     }
-
-
-def require_role(required_role: str):
-    def role_checker(current_user: Dict = Depends(get_current_user)):
-        if required_role not in current_user.get("roles", []):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"User does not have required role: {required_role}"
-            )
-        return current_user
-    return role_checker
-

@@ -8,11 +8,11 @@ interface HistoryState {
 export class UndoManager {
   private history: HistoryState[] = []
   private currentIndex: number = -1
-  private maxHistory: number = 5
+  private maxHistory: number = 50
   private editor: EditorJS
   private isRestoring: boolean = false
 
-  constructor(editor: EditorJS, maxHistory: number = 5) {
+  constructor(editor: EditorJS, maxHistory: number = 50) {
     this.editor = editor
     this.maxHistory = maxHistory
   }
@@ -23,18 +23,18 @@ export class UndoManager {
     try {
       const content = await this.editor.save()
 
-      // Remove any future states if we're not at the end
+      const current = this.history[this.currentIndex]
+      if (current && JSON.stringify(current.content.blocks) === JSON.stringify(content.blocks)) return
+
       if (this.currentIndex < this.history.length - 1) {
         this.history = this.history.slice(0, this.currentIndex + 1)
       }
 
-      // Add new state
       this.history.push({
         content,
         timestamp: Date.now()
       })
 
-      // Limit history size
       if (this.history.length > this.maxHistory) {
         this.history.shift()
       } else {

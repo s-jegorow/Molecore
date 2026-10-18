@@ -1,7 +1,3 @@
-"""
-Demo page content - seeded once on first backend startup for unauthenticated visitors.
-"""
-
 DEMO_USER_ID = "demo"
 
 _DEMO_CONTENT_HOME = {

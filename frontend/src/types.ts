@@ -1,15 +1,27 @@
-export interface Page {
+export interface PageMeta {
   id: number
   title: string
-  content: EditorJSContent
   parent_id: number | null
   page_type: string
   icon: string | null
   header: string | null
   order: number
-  user_id: number
+  user_id: string
   created_at: string
   updated_at: string
+}
+
+export interface Page extends PageMeta {
+  content: EditorJSContent
+}
+
+export interface SearchResult {
+  id: number
+  title: string
+  parent_id: number | null
+  icon: string | null
+  page_type: string
+  snippet: string | null
 }
 
 export interface PageCreate {
@@ -19,6 +31,7 @@ export interface PageCreate {
   page_type?: string
   icon?: string | null
   header?: string | null
+  order?: number
 }
 
 export interface PageUpdate {

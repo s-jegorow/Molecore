@@ -1,18 +1,8 @@
 import { Modal } from './Modal'
-import { API_URL } from './api'
-import { getToken } from './auth'
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
+import { uploadFile } from './api'
+import { escapeHtml } from './utils'
 
 export default class FileBlock {
-  private api: any
   private readOnly: boolean
   private data: {
     url?: string
@@ -22,10 +12,13 @@ export default class FileBlock {
   }
   private wrapper: HTMLElement | null = null
 
-  constructor({ data, api, readOnly }: any) {
-    this.api = api
+  constructor({ data, readOnly }: any) {
     this.readOnly = readOnly
     this.data = data || {}
+  }
+
+  static get isReadOnlySupported() {
+    return true
   }
 
   static get toolbox() {
@@ -41,7 +34,7 @@ export default class FileBlock {
 
     if (this.data.url) {
       this._createFileDisplay()
-    } else {
+    } else if (!this.readOnly) {
       this._createUploader()
     }
 
@@ -65,7 +58,6 @@ export default class FileBlock {
 
     const input = document.createElement('input')
     input.type = 'file'
-    // Accept all file types
     input.style.display = 'none'
 
     uploader.addEventListener('click', () => input.click())
@@ -74,7 +66,6 @@ export default class FileBlock {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
-      // Check file size (50MB max)
       if (file.size > 50 * 1024 * 1024) {
         await Modal.error('File too large. Maximum size is 50MB.')
         return
@@ -92,35 +83,16 @@ export default class FileBlock {
     if (!this.wrapper) return
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('upload_type', 'file')
-
-      const token = await getToken()
-
-      const headers: HeadersInit = {}
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        headers,
-        body: formData
-      })
-
-      if (!response.ok) throw new Error('Upload failed')
-
-      const data = await response.json()
-      this.data.url = `${API_URL}${data.url}`
+      const url = await uploadFile(file, 'file')
+      this.data.url = url
       this.data.fileName = file.name
       this.data.fileSize = file.size
       this.data.fileType = file.type
 
       this._createFileDisplay()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload failed:', error)
-      await Modal.error('Failed to upload file. Please try again.')
+      await Modal.error(error?.message || 'Failed to upload file. Please try again.')
     }
   }
 
@@ -153,7 +125,6 @@ export default class FileBlock {
 
     this.wrapper.appendChild(fileDisplay)
 
-    // Add delete button if not readOnly
     if (!this.readOnly) {
       const deleteBtn = document.createElement('button')
       deleteBtn.classList.add('file-delete-btn')
@@ -205,7 +176,6 @@ export default class FileBlock {
   }
 
   destroy() {
-    // Cleanup when block is destroyed
     if (this.wrapper) {
       this.wrapper.innerHTML = ''
     }

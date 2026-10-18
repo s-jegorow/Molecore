@@ -1,5 +1,4 @@
 export default class EmbedBlock {
-  private api: any
   private readOnly: boolean
   private data: {
     url?: string
@@ -7,8 +6,7 @@ export default class EmbedBlock {
   }
   private wrapper: HTMLElement | null = null
 
-  constructor({ data, api, readOnly }: any) {
-    this.api = api
+  constructor({ data, readOnly }: any) {
     this.readOnly = readOnly
     this.data = data || { height: 400 }
   }
@@ -62,11 +60,9 @@ export default class EmbedBlock {
       const value = input.value.trim()
       if (!value) return
 
-      // Extract URL from iframe code if pasted
       const iframeSrcMatch = value.match(/src=["']([^"']+)["']/)
       const extractedUrl = iframeSrcMatch ? iframeSrcMatch[1] : value
 
-      // Only allow http/https URLs
       try {
         const parsed = new URL(extractedUrl)
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -91,14 +87,12 @@ export default class EmbedBlock {
     this.wrapper.innerHTML = ''
     this.wrapper.appendChild(inputContainer)
 
-    // Auto-focus input
     setTimeout(() => input.focus(), 0)
   }
 
   private _createEmbed() {
     if (!this.wrapper || !this.data.url) return
 
-    // Validate URL protocol
     try {
       const parsed = new URL(this.data.url)
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
@@ -122,7 +116,6 @@ export default class EmbedBlock {
 
     embedContainer.appendChild(iframe)
 
-    // Edit/Delete buttons
     if (!this.readOnly) {
       const controls = document.createElement('div')
       controls.classList.add('embed-controls')
@@ -175,7 +168,6 @@ export default class EmbedBlock {
   }
 
   destroy() {
-    // Cleanup when block is destroyed
     if (this.wrapper) {
       this.wrapper.innerHTML = ''
     }

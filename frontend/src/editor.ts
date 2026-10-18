@@ -4,7 +4,7 @@ import List from '@editorjs/list'
 import Code from '@editorjs/code'
 import Table from '@editorjs/table'
 import CustomToggleBlock from './CustomToggleBlock'
-import CalloutBlock, { applyCalloutForeignKeys, initCalloutObserver } from './CalloutBlock'
+import CalloutBlock, { initCalloutObserver } from './CalloutBlock'
 import ParagraphWithBlanks from './ParagraphWithBlanks'
 import ResizableImage from './ResizableImage'
 import BackgroundColorTune from './BackgroundColorTune'
@@ -24,15 +24,13 @@ import RevealBlock from './RevealBlock'
 import AlignmentTune from './AlignmentTune'
 import { UndoManager } from './UndoManager'
 import { appState } from './state'
+import { isSafeUrl } from './utils'
 
 export type EditorChangeCallback = () => Promise<void>
 export type UndoRedoUpdateCallback = () => void
 
 let undoRedoUpdateCallback: UndoRedoUpdateCallback | undefined
 
-/**
- * Initialize the EditorJS instance with all tools and configurations
- */
 export function initEditor(
   onChange?: EditorChangeCallback,
   onUndoRedoUpdate?: UndoRedoUpdateCallback
@@ -113,14 +111,11 @@ export function initEditor(
     autofocus: true,
 
     onReady: () => {
-      // Enable drag and drop for blocks
       new DragDrop(editor)
 
-      // Initialize undo manager with max 5 history states
-      const undoManager = new UndoManager(editor, 5)
+      const undoManager = new UndoManager(editor, 50)
       appState.undoManager = undoManager
 
-      // Capture initial state after a short delay
       setTimeout(async () => {
         await undoManager.captureState()
         if (undoRedoUpdateCallback) {
@@ -128,25 +123,21 @@ export function initEditor(
         }
       }, 500)
 
-      // Fix for EditorJS popovers on mobile devices
-      // Touch events need special handling to properly trigger popover item clicks
+      // mobile: popover items ignore taps without this
       document.addEventListener('touchend', (e: TouchEvent) => {
         const target = e.target as HTMLElement
 
-        // Check if touch is on a popover item
         const popoverItem = target.closest('.ce-popover__item')
         if (popoverItem) {
           e.preventDefault()
           e.stopPropagation()
 
-          // Trigger click after a small delay to ensure proper event handling
           setTimeout(() => {
             (popoverItem as HTMLElement).click()
           }, 50)
         }
       }, { passive: false, capture: true })
 
-      // Make links clickable in the editor
       const editorElement = document.getElementById('editor')
       if (editorElement) {
         editorElement.addEventListener('click', (e: MouseEvent) => {
@@ -154,17 +145,15 @@ export function initEditor(
           const link = target.closest('a')
           if (link && link.href) {
             e.preventDefault()
-            window.open(link.href, '_blank', 'noopener,noreferrer')
+            if (isSafeUrl(link.href)) window.open(link.href, '_blank', 'noopener,noreferrer')
           }
         })
       }
 
-      // Set up MutationObserver for reliable callout foreignKey styling
       initCalloutObserver()
     },
 
     onChange: async () => {
-      // Capture state for undo/redo
       if (appState.undoManager) {
         await appState.undoManager.captureState()
         if (undoRedoUpdateCallback) {
@@ -172,22 +161,17 @@ export function initEditor(
         }
       }
 
-      // Trigger custom onChange callback if provided
       if (onChange) {
         await onChange()
       }
     }
   })
 
-  // Store editor in app state
   appState.editor = editor
 
   return editor
 }
 
-/**
- * Perform undo operation
- */
 export async function performUndo(): Promise<void> {
   if (appState.undoManager) {
     await appState.undoManager.undo()
@@ -197,9 +181,6 @@ export async function performUndo(): Promise<void> {
   }
 }
 
-/**
- * Perform redo operation
- */
 export async function performRedo(): Promise<void> {
   if (appState.undoManager) {
     await appState.undoManager.redo()
@@ -209,16 +190,10 @@ export async function performRedo(): Promise<void> {
   }
 }
 
-/**
- * Check if undo is available
- */
 export function canUndo(): boolean {
   return appState.undoManager?.canUndo() ?? false
 }
 
-/**
- * Check if redo is available
- */
 export function canRedo(): boolean {
   return appState.undoManager?.canRedo() ?? false
 }

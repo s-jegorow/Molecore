@@ -1,20 +1,23 @@
-import type { API, BlockTool, BlockToolConstructorOptions } from '@editorjs/editorjs'
+import type { BlockTool, BlockToolConstructorOptions } from '@editorjs/editorjs'
 import { createPage, getPages } from './api'
 import { showIconPicker } from './iconPicker'
+import { appState } from './state'
+import { isImageIcon } from './utils'
 
 export default class PageBlock implements BlockTool {
-  private api: API
   private data: { pageId?: number; pageTitle?: string }
   private wrapper: HTMLElement | null = null
   private container: HTMLElement | null = null
-  private currentPageId: number | null = null
 
-  constructor({ data, api }: BlockToolConstructorOptions) {
-    this.api = api
+  constructor({ data }: BlockToolConstructorOptions) {
     this.data = data || {}
+  }
 
-    // Get current page ID from window
-    this.currentPageId = (window as any).currentPageId || null
+  static get toolbox() {
+    return {
+      title: 'Page',
+      icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+    }
   }
 
   render() {
@@ -57,28 +60,30 @@ export default class PageBlock implements BlockTool {
   async renderExistingPage() {
     if (!this.wrapper) return
 
-    // Opt out of EditorJS contentEditable — clicks are for navigation, not text editing
     this.wrapper.contentEditable = 'false'
     this.wrapper.style.cursor = 'pointer'
 
-    // Fetch current page data to get icon
     let pageIcon = '📄'
+    let exists = true
     try {
       const pages = await getPages()
       const currentPage = pages.find(p => p.id === this.data.pageId)
-      if (currentPage?.icon) {
-        pageIcon = currentPage.icon
+      if (currentPage) {
+        if (currentPage.icon) pageIcon = currentPage.icon
+        this.data.pageTitle = currentPage.title
+      } else {
+        exists = false
       }
     } catch (error) {
       console.error('Failed to fetch page icon:', error)
     }
+    if (!this.wrapper) return
 
     const iconEl = document.createElement('span')
     iconEl.className = 'page-block-icon'
     iconEl.style.cssText = 'font-size: 20px; cursor: pointer; display: inline-flex; align-items: center; margin-right: 2px;'
 
-    // Check if icon is URL or emoji
-    if (pageIcon.startsWith('http')) {
+    if (isImageIcon(pageIcon)) {
       const img = document.createElement('img')
       img.src = pageIcon
       img.style.cssText = 'width: 20px; height: 20px; object-fit: cover; border-radius: 2px;'
@@ -97,13 +102,19 @@ export default class PageBlock implements BlockTool {
     this.wrapper.appendChild(iconEl)
     this.wrapper.appendChild(title)
 
-    // Icon double-click - show picker
+    if (!exists) {
+      title.textContent = `${this.data.pageTitle || 'Untitled'} (deleted)`
+      title.style.textDecoration = 'line-through'
+      this.wrapper.style.cursor = 'default'
+      this.wrapper.style.opacity = '0.6'
+      return
+    }
+
     iconEl.addEventListener('dblclick', async (e) => {
       e.stopPropagation()
       e.preventDefault()
       if (this.data.pageId) {
         showIconPicker(this.data.pageId, iconEl, () => {
-          // Trigger sidebar reload
           window.dispatchEvent(new CustomEvent('iconUpdated'))
         })
       }
@@ -124,10 +135,8 @@ export default class PageBlock implements BlockTool {
       }
     }
 
-    // Wrapper click - navigate to page (entire row is clickable)
-    // Use mousedown — fires before click/EditorJS/DragDrop can intercept
+    // mousedown instead of click, otherwise editorjs/dragdrop eat the event
     this.wrapper.addEventListener('mousedown', (e) => {
-      // Don't navigate if clicking on the icon (double-click for picker)
       if ((e.target as HTMLElement).closest('.page-block-icon')) return
       e.stopPropagation()
       e.preventDefault()
@@ -167,17 +176,15 @@ export default class PageBlock implements BlockTool {
         e.preventDefault()
         const newTitle = input.value.trim()
 
-        // Create NEW page as SUBPAGE of current page
         createPage({
           title: newTitle,
           content: { blocks: [] },
-          parent_id: this.currentPageId
+          parent_id: appState.currentPageId
         }).then(newPage => {
           this.data.pageId = newPage.id
           this.data.pageTitle = newPage.title
           this.renderExistingPage()
 
-          // Trigger auto-save
           const event = new CustomEvent('pageBlockCreated')
           window.dispatchEvent(event)
         }).catch(error => {
@@ -186,7 +193,6 @@ export default class PageBlock implements BlockTool {
       }
     }
 
-    // Auto-focus
     setTimeout(() => input.focus(), 100)
   }
 
@@ -197,8 +203,7 @@ export default class PageBlock implements BlockTool {
     }
   }
 
-  validate(savedData: { pageId?: number; pageTitle?: string }) {
-    // Allow saving even if no page is selected yet
+  validate(_savedData: { pageId?: number; pageTitle?: string }) {
     return true
   }
 

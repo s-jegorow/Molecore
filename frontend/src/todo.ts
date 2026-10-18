@@ -30,6 +30,16 @@ export function initTodo() {
     updateProgress()
   })
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushTodo()
+  })
+  window.addEventListener('beforeunload', (e) => {
+    if (!saveTimeout) return
+    flushTodo()
+    e.preventDefault()
+    e.returnValue = ''
+  })
+
   loadTodo()
 }
 
@@ -38,7 +48,6 @@ async function loadTodo() {
     const page = await getTodo()
     todoId = page.id
     const blocks = page.content?.blocks || []
-    // Checklist block: { type: 'checklist', data: { items: [{text, checked}] } }
     const checklist = blocks.find((b: any) => b.type === 'checklist')
     items = checklist?.data?.items || []
     renderList()
@@ -116,10 +125,17 @@ function updateProgress() {
 
 function debounceSave() {
   if (saveTimeout) clearTimeout(saveTimeout)
-  saveTimeout = setTimeout(saveTodo, 800)
+  saveTimeout = setTimeout(() => saveTodo(), 800)
 }
 
-async function saveTodo() {
+function flushTodo() {
+  if (!saveTimeout) return
+  clearTimeout(saveTimeout)
+  saveTodo(true)
+}
+
+async function saveTodo(keepalive = false) {
+  saveTimeout = null
   if (todoId === null) return
   try {
     await updatePage(todoId, {
@@ -130,7 +146,7 @@ async function saveTodo() {
           : [],
         version: '2.28.2'
       }
-    })
+    }, { keepalive })
   } catch (e) {
     console.error('Failed to save todos:', e)
   }

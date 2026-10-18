@@ -4,14 +4,16 @@ import * as ToggleBlockModule from 'editorjs-toggle-block'
 const OriginalToggleBlock = ToggleBlockModule.default || ToggleBlockModule
 
 export default class CustomToggleBlock extends OriginalToggleBlock {
+  declare api: any
+  declare wrapper: any
+  declare data: any
+  declare setAttributesToNewBlock: (index: number) => void
 
   setNestedBlockAttributes() {
-    // Override to prevent auto-nesting after closed toggle
     const currentIndex = this.api.blocks.getCurrentBlockIndex()
     const block = this.api.blocks.getBlockByIndex(currentIndex)
     const { holder } = block
 
-    // Only nest if explicitly marked
     if (holder.getAttribute('will-be-a-nested-block')) {
       holder.removeAttribute('will-be-a-nested-block')
       this.setAttributesToNewBlock(currentIndex)
@@ -20,14 +22,9 @@ export default class CustomToggleBlock extends OriginalToggleBlock {
   }
 
   hideAndShowBlocks(toggleId = this.wrapper.id, status = this.data.status) {
-    // Get all blocks with this foreignKey
     const blocks = document.querySelectorAll(`div[foreignKey="${toggleId}"]`)
 
     if (blocks.length > 0) {
-      let foundFirst = false
-      let foundLast = false
-
-      // Find first and last block with foreignKey
       const allBlocks = document.querySelectorAll('.ce-block')
       let firstIndex = -1
       let lastIndex = -1
@@ -40,13 +37,11 @@ export default class CustomToggleBlock extends OriginalToggleBlock {
         }
       })
 
-      // Hide all blocks between first and last (including empty ones)
       if (firstIndex !== -1 && lastIndex !== -1) {
         for (let i = firstIndex; i <= lastIndex; i++) {
           const block = allBlocks[i] as HTMLElement
           block.hidden = status === 'closed'
 
-          // Handle nested toggles recursively
           const nestedToggles = block.querySelectorAll('.toggle-block__selector')
           if (nestedToggles.length > 0) {
             const nestedStatus = status === 'closed' ? status : block.getAttribute('status')
@@ -55,9 +50,8 @@ export default class CustomToggleBlock extends OriginalToggleBlock {
         }
       }
     } else if (toggleId === this.wrapper.id) {
-      // No blocks found - toggle the default content
       const defaultContent = this.wrapper.lastChild
-      defaultContent.classList.toggle('toggle-block__hidden', status)
+      defaultContent.classList.toggle('toggle-block__hidden', status === 'closed')
     }
   }
 }

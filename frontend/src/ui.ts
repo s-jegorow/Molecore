@@ -1,15 +1,42 @@
-import { getPages, createPage, updatePage, getPreferences } from './api'
+import { getPages, createPage, updatePage, getPreferences, searchPages } from './api'
 import { appState } from './state'
-import type { Page, PageSelectCallback } from './types'
+import type { PageMeta, PageSelectCallback, SearchResult } from './types'
 import { showIconPicker } from './iconPicker'
+import { isImageIcon } from './utils'
 
-let currentPageId: number | null = null
-let pageSelectCallback: PageSelectCallback | null = null
-let allPages: Page[] = []
+let activePageId: number | null = null
+let allPages: PageMeta[] = []
+let dashboardEnabled = true
+let pendingNavigation: number | null = null
 
-// Initialize page list (bottom bar + slide-in panel)
+function cancelPendingNavigation(): void {
+  if (pendingNavigation !== null) {
+    clearTimeout(pendingNavigation)
+    pendingNavigation = null
+  }
+}
+
+const EXPANDED_KEY = 'expandedPages'
+const expandedPages: Set<number> = loadExpanded()
+
+function loadExpanded(): Set<number> {
+  try {
+    const raw = localStorage.getItem(EXPANDED_KEY)
+    return new Set(raw ? (JSON.parse(raw) as number[]) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveExpanded(): void {
+  try {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify([...expandedPages]))
+  } catch {
+    return
+  }
+}
+
 export function initPageList(onPageSelect: PageSelectCallback) {
-  pageSelectCallback = onPageSelect
   const mobileMenuToggle = document.getElementById('mobile-menu-toggle')
   const mobileOverlay = document.getElementById('mobile-overlay')
   const mobileNewPageBtn = document.getElementById('mobile-new-page-btn')
@@ -20,7 +47,6 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     return
   }
 
-  // Logo button toggles menu open/close
   mobileMenuToggle.addEventListener('click', () => {
     if (mobileOverlay.classList.contains('active')) {
       closeMobileMenu()
@@ -29,21 +55,19 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     }
   })
 
-  // Close menu when clicking overlay
   mobileOverlay.addEventListener('click', (e) => {
     if (e.target === mobileOverlay) {
       closeMobileMenu()
     }
   })
 
-  // New page button
   mobileNewPageBtn.addEventListener('click', async () => {
     try {
       const newPage = await createPage({
         title: 'Untitled',
         content: { blocks: [] }
       })
-      await loadPages(onPageSelect)
+      await loadPages()
       closeMobileMenu()
       onPageSelect(newPage.id)
     } catch (error) {
@@ -51,7 +75,6 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     }
   })
 
-  // Demo: back to start button
   const demoBackBtn = document.getElementById('demo-back-btn')
   if (demoBackBtn) {
     demoBackBtn.addEventListener('click', async () => {
@@ -61,19 +84,18 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     })
   }
 
-  // Listen for icon updates
   window.addEventListener('iconUpdated', () => {
-    loadPages(onPageSelect)
+    loadPages()
   })
 
-  // Search input
   if (searchInput && searchResults) {
+    let searchTimer: number | null = null
     searchInput.addEventListener('input', (e) => {
-      const query = (e.target as HTMLInputElement).value.toLowerCase().trim()
-      renderSearchResults(query, onPageSelect)
+      const query = (e.target as HTMLInputElement).value.trim()
+      if (searchTimer !== null) clearTimeout(searchTimer)
+      searchTimer = window.setTimeout(() => runSearch(query, onPageSelect), 200)
     })
 
-    // Close search results when clicking outside
     document.addEventListener('click', (e) => {
       if (!searchInput.contains(e.target as Node) && !searchResults.contains(e.target as Node)) {
         searchResults.innerHTML = ''
@@ -81,79 +103,91 @@ export function initPageList(onPageSelect: PageSelectCallback) {
     })
   }
 
-  // Event delegation for page clicks
-  const mobilePagesList = document.getElementById('mobile-pages-list')
-  const mobileFavoritesList = document.getElementById('mobile-favorites-list')
+  const lists = [
+    document.getElementById('mobile-pages-list'),
+    document.getElementById('mobile-favorites-list'),
+  ]
 
-  if (mobilePagesList) {
-    mobilePagesList.addEventListener('click', (e) => {
-      const pageItem = (e.target as HTMLElement).closest('.page-item')
+  lists.forEach(list => {
+    list?.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement
+      const pageItem = target.closest('.page-item') as HTMLElement | null
       if (!pageItem) return
 
-      const pageId = parseInt((pageItem as HTMLElement).dataset.pageId || '0')
+      const pageId = parseInt(pageItem.dataset.pageId || '0')
       if (!pageId) return
 
-      // Don't trigger if clicking icon
-      const iconEl = pageItem.querySelector('.page-icon')
-      if (iconEl && (e.target === iconEl || iconEl.contains(e.target as Node))) {
+      if (target.closest('.page-toggle')) {
+        toggleExpanded(pageId)
         return
       }
 
-      closeMobileMenu()
-      onPageSelect(pageId)
-      setActivePage(pageId)
-    })
-  }
-
-  if (mobileFavoritesList) {
-    mobileFavoritesList.addEventListener('click', (e) => {
-      const pageItem = (e.target as HTMLElement).closest('.page-item')
-      if (!pageItem) return
-
-      const pageId = parseInt((pageItem as HTMLElement).dataset.pageId || '0')
-      if (!pageId) return
-
-      // Don't trigger if clicking icon
-      const iconEl = pageItem.querySelector('.page-icon')
-      if (iconEl && (e.target === iconEl || iconEl.contains(e.target as Node))) {
+      if (target.closest('.page-icon') || target.closest('.page-item-edit')) {
         return
       }
 
-      closeMobileMenu()
-      onPageSelect(pageId)
-      setActivePage(pageId)
-    })
-  }
+      const navigate = () => {
+        pendingNavigation = null
+        closeMobileMenu()
+        onPageSelect(pageId)
+        setActivePage(pageId)
+      }
 
-  // Initial load
-  loadPages(onPageSelect)
+      cancelPendingNavigation()
+      if (target.closest('.page-title') && pageItem.dataset.editable === 'true') {
+        pendingNavigation = window.setTimeout(navigate, 250)
+      } else {
+        navigate()
+      }
+    })
+  })
+
+  loadPages()
 }
 
-/**
- * Refresh sidebar (re-fetch pages from API)
- */
 export async function refreshSidebar(): Promise<void> {
-  if (pageSelectCallback) {
-    await loadPages(pageSelectCallback)
+  await loadPages()
+}
+
+function ancestorsOf(pageId: number): number[] {
+  const pageMap = new Map(allPages.map(p => [p.id, p]))
+  const result: number[] = []
+  const seen = new Set<number>()
+  let current = pageMap.get(pageId)?.parent_id ?? null
+  while (current !== null && !seen.has(current)) {
+    seen.add(current)
+    result.push(current)
+    current = pageMap.get(current)?.parent_id ?? null
   }
+  return result
 }
 
 export function setActivePage(pageId: number) {
-  currentPageId = pageId
+  activePageId = pageId
+
+  const missing = ancestorsOf(pageId).filter(id => !expandedPages.has(id))
+  if (missing.length > 0) {
+    missing.forEach(id => expandedPages.add(id))
+    saveExpanded()
+    renderSidebar()
+    return
+  }
 
   document.querySelectorAll('.page-item').forEach(item => {
-    item.classList.remove('active')
-    if ((item as HTMLElement).dataset.pageId === String(pageId)) {
-      item.classList.add('active')
-    }
+    item.classList.toggle('active', (item as HTMLElement).dataset.pageId === String(pageId))
   })
 }
 
-// Dark mode initialization
+function toggleExpanded(pageId: number): void {
+  if (expandedPages.has(pageId)) expandedPages.delete(pageId)
+  else expandedPages.add(pageId)
+  saveExpanded()
+  renderSidebar()
+}
+
 export function initDarkMode() {
   const mobileDarkmodeBtn = document.getElementById('mobile-darkmode-btn')
 
-  // Default: dark mode
   const savedMode = localStorage.getItem('darkMode')
   let isDarkMode = savedMode !== null ? savedMode === 'true' : true
 
@@ -185,7 +219,6 @@ export function initDarkMode() {
     updateDarkmodeIcon()
   }
 
-  // Apply saved dark mode preference on load
   if (isDarkMode) {
     document.body.classList.add('dark-mode')
     mobileDarkmodeBtn?.classList.add('active')
@@ -196,52 +229,16 @@ export function initDarkMode() {
   mobileDarkmodeBtn?.addEventListener('click', toggleDarkMode)
 }
 
-// Load pages into the slide-in panel
-async function loadPages(onPageSelect: PageSelectCallback) {
-  const mobilePagesList = document.getElementById('mobile-pages-list')
-  const mobileFavoritesList = document.getElementById('mobile-favorites-list')
-
-  if (!mobilePagesList) return
-
+async function loadPages() {
   try {
-    allPages = await getPages()
-    const mainPages = allPages.filter(page => !page.parent_id && page.page_type !== 'home')
-    const favorites = mainPages.filter(page => page.page_type === 'favorite')
-    const nonFavorites = mainPages.filter(page => page.page_type !== 'favorite')
+    const [pages, prefs] = await Promise.all([
+      getPages(),
+      getPreferences().catch(() => ({} as Record<string, any>)),
+    ])
+    allPages = pages
+    dashboardEnabled = prefs.dashboard_enabled ?? true
+    renderSidebar()
 
-    if (mobileFavoritesList) {
-      mobileFavoritesList.innerHTML = ''
-
-      // Dashboard item at top of favorites if enabled
-      const prefs = await getPreferences().catch(() => ({}))
-      if (prefs.dashboard_enabled ?? true) {
-        const homePage = allPages.find(p => p.page_type === 'home')
-        if (homePage) {
-          const dashItem = document.createElement('div')
-          dashItem.className = 'page-item' + (currentPageId === homePage.id ? ' active' : '')
-          dashItem.dataset.pageId = String(homePage.id)
-          dashItem.innerHTML = `<span style="margin-right:8px;font-size:16px">🏠</span><span class="page-title">Dashboard</span>`
-          dashItem.addEventListener('click', () => {
-            onPageSelect(homePage.id)
-            closeMobileMenu()
-          })
-          mobileFavoritesList.appendChild(dashItem)
-        }
-      }
-
-      favorites.forEach(page => {
-        const pageItem = createPageItem(page, onPageSelect)
-        mobileFavoritesList.appendChild(pageItem)
-      })
-    }
-
-    mobilePagesList.innerHTML = ''
-    nonFavorites.forEach(page => {
-      const pageItem = createPageItem(page, onPageSelect)
-      mobilePagesList.appendChild(pageItem)
-    })
-
-    // Clear search
     const searchInput = document.getElementById('search-input') as HTMLInputElement
     const searchResults = document.getElementById('search-results')
     if (searchInput) searchInput.value = ''
@@ -251,56 +248,137 @@ async function loadPages(onPageSelect: PageSelectCallback) {
   }
 }
 
-// Create a page item element with icon-picker and inline-rename
-function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLElement {
+function buildChildrenMap(): Map<number | null, PageMeta[]> {
+  const ids = new Set(allPages.map(p => p.id))
+  const map = new Map<number | null, PageMeta[]>()
+  allPages.forEach(page => {
+    const parent = page.parent_id !== null && ids.has(page.parent_id) ? page.parent_id : null
+    if (!map.has(parent)) map.set(parent, [])
+    map.get(parent)!.push(page)
+  })
+  return map
+}
+
+function renderSidebar(): void {
+  const mobilePagesList = document.getElementById('mobile-pages-list')
+  const mobileFavoritesList = document.getElementById('mobile-favorites-list')
+  if (!mobilePagesList) return
+
+  const childrenMap = buildChildrenMap()
+  const homePage = allPages.find(p => p.page_type === 'home')
+  const roots = (childrenMap.get(null) || []).filter(p => p.page_type !== 'home')
+  if (homePage && !dashboardEnabled) {
+    roots.push(...(childrenMap.get(homePage.id) || []))
+  }
+
+  if (mobileFavoritesList) {
+    mobileFavoritesList.innerHTML = ''
+
+    if (homePage && dashboardEnabled) {
+      mobileFavoritesList.appendChild(createPageNode(homePage, 0, childrenMap, { label: 'Dashboard', icon: '🏠', editable: false }))
+    }
+
+    allPages
+      .filter(page => page.page_type === 'favorite')
+      .forEach(page => mobileFavoritesList.appendChild(createPageNode(page, 0, childrenMap)))
+  }
+
+  mobilePagesList.innerHTML = ''
+  roots
+    .filter(page => page.page_type !== 'favorite')
+    .forEach(page => mobilePagesList.appendChild(createPageNode(page, 0, childrenMap)))
+}
+
+function createPageNode(
+  page: PageMeta,
+  depth: number,
+  childrenMap: Map<number | null, PageMeta[]>,
+  options: { label?: string; icon?: string; editable?: boolean } = {},
+  visited: Set<number> = new Set()
+): HTMLElement {
+  const node = document.createElement('div')
+  node.className = 'page-node'
+
+  const children = visited.has(page.id) ? [] : (childrenMap.get(page.id) || [])
+  const nextVisited = new Set(visited).add(page.id)
+  const expanded = expandedPages.has(page.id)
+
+  const pageItem = createPageItem(page, depth, children.length > 0, expanded, options)
+  node.appendChild(pageItem)
+
+  if (children.length > 0 && expanded) {
+    const childList = document.createElement('div')
+    childList.className = 'page-children'
+    children.forEach(child => childList.appendChild(createPageNode(child, depth + 1, childrenMap, {}, nextVisited)))
+    node.appendChild(childList)
+  }
+
+  return node
+}
+
+function createPageItem(
+  page: PageMeta,
+  depth: number,
+  hasChildren: boolean,
+  expanded: boolean,
+  options: { label?: string; icon?: string; editable?: boolean }
+): HTMLElement {
+  const editable = options.editable !== false
+  let currentTitle = page.title
+
   const pageItem = document.createElement('div')
   pageItem.className = 'page-item'
   pageItem.dataset.pageId = String(page.id)
+  if (depth > 0) pageItem.style.paddingLeft = `calc(var(--spacing-lg) + ${depth * 16}px)`
 
-  // Icon element
+  const toggle = document.createElement('span')
+  toggle.className = 'page-toggle' + (hasChildren ? '' : ' page-toggle-empty')
+  toggle.textContent = hasChildren ? (expanded ? '▾' : '▸') : ''
+
   const iconEl = document.createElement('span')
   iconEl.className = 'page-icon'
   iconEl.style.cssText = 'margin-right: 8px; user-select: none; display: inline-flex; align-items: center; font-size: 16px;'
 
-  if (page.icon && page.icon.startsWith('http')) {
+  const icon = options.icon ?? page.icon
+  if (isImageIcon(icon)) {
     const img = document.createElement('img')
-    img.src = page.icon
+    img.src = icon!
     img.style.cssText = 'width: 20px; height: 20px; object-fit: cover; border-radius: 2px;'
     iconEl.appendChild(img)
   } else {
-    iconEl.textContent = page.icon || '📄'
+    iconEl.textContent = icon || '📄'
   }
 
-  // Title element
   const titleEl = document.createElement('span')
   titleEl.className = 'page-title'
-  titleEl.textContent = page.title
+  titleEl.textContent = options.label ?? page.title
   titleEl.style.cssText = 'flex: 1; cursor: default; text-decoration: none;'
 
+  pageItem.appendChild(toggle)
   pageItem.appendChild(iconEl)
   pageItem.appendChild(titleEl)
 
-  if (page.id === currentPageId) {
+  if (page.id === activePageId) {
     pageItem.classList.add('active')
   }
 
-  // Icon double-click handler - show picker
+  if (!editable) return pageItem
+  pageItem.dataset.editable = 'true'
+
   iconEl.addEventListener('dblclick', (e) => {
     e.stopPropagation()
     e.preventDefault()
     showIconPicker(page.id, iconEl, () => {
-      if (pageSelectCallback) {
-        loadPages(pageSelectCallback)
-      }
+      loadPages()
     })
   })
 
-  // Double click title - edit inline
   titleEl.addEventListener('dblclick', (e) => {
     e.stopPropagation()
+    cancelPendingNavigation()
     const input = document.createElement('input')
     input.type = 'text'
-    input.value = page.title
+    input.value = currentTitle
     input.className = 'page-item-edit'
 
     input.style.cssText = `
@@ -315,14 +393,19 @@ function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLEleme
       color: var(--color-text-primary);
     `
 
+    let cancelled = false
+
     const saveTitle = async () => {
+      if (cancelled) return
       const newTitle = input.value.trim() || 'Untitled'
+      titleEl.textContent = newTitle
+      if (newTitle === currentTitle) return
       try {
         await updatePage(page.id, { title: newTitle })
-        titleEl.textContent = newTitle
+        currentTitle = newTitle
+        page.title = newTitle
 
-        // Update header if this is the active page
-        if (page.id === currentPageId) {
+        if (page.id === appState.currentPageId) {
           const headerInput = document.getElementById('page-title') as HTMLInputElement
           if (headerInput) {
             headerInput.value = newTitle
@@ -330,7 +413,7 @@ function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLEleme
         }
       } catch (error) {
         console.error('Failed to update title:', error)
-        titleEl.textContent = page.title
+        titleEl.textContent = currentTitle
       }
     }
 
@@ -339,7 +422,8 @@ function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLEleme
       if (e.key === 'Enter') {
         input.blur()
       } else if (e.key === 'Escape') {
-        titleEl.textContent = page.title
+        cancelled = true
+        titleEl.textContent = currentTitle
       }
     })
 
@@ -349,54 +433,17 @@ function createPageItem(page: Page, onPageSelect: PageSelectCallback): HTMLEleme
     input.select()
   })
 
-  // Click handled by event delegation in initPageList
-
   return pageItem
-}
-
-// Search functionality
-function getBlockText(block: any): string {
-  if (block.data.text) return block.data.text
-  if (block.data.items) {
-    return Array.isArray(block.data.items)
-      ? block.data.items.map((i: any) => (typeof i === 'string' ? i : i.content || '')).join(' ')
-      : ''
-  }
-  if (block.data.code) return block.data.code
-  if (block.data.content && Array.isArray(block.data.content)) {
-    return block.data.content.flat().join(' ')
-  }
-  if (block.data.pageTitle) return block.data.pageTitle
-  return ''
-}
-
-function searchInPageContent(page: Page, query: string): string | true | false {
-  if (page.title.toLowerCase().includes(query)) return true
-
-  if (page.content && page.content.blocks) {
-    for (const block of page.content.blocks) {
-      const raw = getBlockText(block)
-      const stripped = raw.replace(/<[^>]*>/g, '')
-      if (stripped.toLowerCase().includes(query)) {
-        // Return a short snippet around the match
-        const idx = stripped.toLowerCase().indexOf(query)
-        const start = Math.max(0, idx - 30)
-        const end = Math.min(stripped.length, idx + query.length + 50)
-        const snippet = (start > 0 ? '…' : '') + stripped.slice(start, end) + (end < stripped.length ? '…' : '')
-        return snippet
-      }
-    }
-  }
-
-  return false
 }
 
 function getPagePath(pageId: number): string {
   const pageMap = new Map(allPages.map(p => [p.id, p]))
   const path: string[] = []
+  const seen = new Set<number>()
   let currentId: number | null = pageId
 
-  while (currentId !== null) {
+  while (currentId !== null && !seen.has(currentId)) {
+    seen.add(currentId)
     const page = pageMap.get(currentId)
     if (!page) break
     path.unshift(page.title)
@@ -406,40 +453,44 @@ function getPagePath(pageId: number): string {
   return path.join(' / ')
 }
 
-function renderSearchResults(query: string, onPageSelect: PageSelectCallback) {
+let searchSeq = 0
+
+async function runSearch(query: string, onPageSelect: PageSelectCallback) {
   const searchResults = document.getElementById('search-results')
   if (!searchResults) return
 
+  const seq = ++searchSeq
   if (!query) {
     searchResults.innerHTML = ''
     return
   }
 
-  const matchResults: Array<{ page: Page; snippet: string | null }> = []
-  for (const page of allPages) {
-    const result = searchInPageContent(page, query)
-    if (result !== false) {
-      matchResults.push({ page, snippet: result === true ? null : result })
-    }
+  let results: SearchResult[]
+  try {
+    results = await searchPages(query)
+  } catch (error) {
+    console.error('Search failed:', error)
+    return
   }
+  if (seq !== searchSeq) return
 
-  if (matchResults.length === 0) {
+  if (results.length === 0) {
     searchResults.innerHTML = '<div class="search-no-results">No results found</div>'
     return
   }
 
   searchResults.innerHTML = ''
-  matchResults.forEach(({ page, snippet }) => {
+  results.forEach(({ id, title: pageTitle, snippet }) => {
     const resultItem = document.createElement('div')
     resultItem.className = 'search-result-item'
 
     const title = document.createElement('div')
     title.className = 'search-result-title'
-    title.textContent = page.title
+    title.textContent = pageTitle
 
     const path = document.createElement('div')
     path.className = 'search-result-path'
-    path.textContent = getPagePath(page.id)
+    path.textContent = getPagePath(id) || pageTitle
 
     resultItem.appendChild(title)
     resultItem.appendChild(path)
@@ -453,7 +504,7 @@ function renderSearchResults(query: string, onPageSelect: PageSelectCallback) {
 
     resultItem.addEventListener('click', () => {
       closeMobileMenu()
-      onPageSelect(page.id)
+      onPageSelect(id)
       searchResults.innerHTML = ''
       const searchInput = document.getElementById('search-input') as HTMLInputElement
       if (searchInput) searchInput.value = ''
@@ -463,7 +514,6 @@ function renderSearchResults(query: string, onPageSelect: PageSelectCallback) {
   })
 }
 
-// Menu controls
 function openMobileMenu() {
   const overlay = document.getElementById('mobile-overlay')
   if (overlay) {
@@ -478,12 +528,11 @@ function closeMobileMenu() {
   }
 }
 
-// Read Mode
 export function initReadMode() {
   const readModeBtn = document.getElementById('readmode-btn')
   let isReadMode = localStorage.getItem('readMode') === 'true'
 
-  function applyReadMode() {
+  async function applyReadMode() {
     document.body.classList.toggle('read-mode', isReadMode)
     if (readModeBtn) {
       readModeBtn.classList.toggle('active', isReadMode)
@@ -491,7 +540,12 @@ export function initReadMode() {
     }
 
     if (appState.editor) {
-      appState.editor.readOnly.toggle(isReadMode)
+      try {
+        await appState.editor.isReady
+        await appState.editor.readOnly.toggle(isReadMode)
+      } catch (error) {
+        console.error('Failed to toggle read mode:', error)
+      }
     }
   }
 
@@ -501,17 +555,14 @@ export function initReadMode() {
     applyReadMode()
   }
 
-  // Apply on init
   if (isReadMode) {
-    // Delay to let editor initialize first
-    setTimeout(applyReadMode, 300)
+    applyReadMode()
   }
 
   readModeBtn?.addEventListener('click', toggleReadMode)
 
-  // Keyboard shortcut: Cmd+Shift+R
   document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'r') {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyR') {
       e.preventDefault()
       toggleReadMode()
     }

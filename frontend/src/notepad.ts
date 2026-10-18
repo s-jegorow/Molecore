@@ -30,7 +30,16 @@ export function initNotepad() {
     debounceSave()
   })
 
-  // Load notepad content
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushNotepad()
+  })
+  window.addEventListener('beforeunload', (e) => {
+    if (!saveTimeout) return
+    flushNotepad()
+    e.preventDefault()
+    e.returnValue = ''
+  })
+
   loadNotepad()
 }
 
@@ -38,7 +47,6 @@ async function loadNotepad() {
   try {
     const notepad = await getNotepad()
     notepadId = notepad.id
-    // Extract text from blocks
     const blocks = notepad.content?.blocks || []
     notepadContent = blocks
       .filter((b: any) => b.type === 'paragraph')
@@ -56,10 +64,17 @@ async function loadNotepad() {
 
 function debounceSave() {
   if (saveTimeout) clearTimeout(saveTimeout)
-  saveTimeout = setTimeout(saveNotepad, 1000)
+  saveTimeout = setTimeout(() => saveNotepad(), 1000)
 }
 
-async function saveNotepad() {
+function flushNotepad() {
+  if (!saveTimeout) return
+  clearTimeout(saveTimeout)
+  saveNotepad(true)
+}
+
+async function saveNotepad(keepalive = false) {
+  saveTimeout = null
   if (notepadId === null) return
 
   const blocks = notepadContent.split('\n').map(line => ({
@@ -74,7 +89,7 @@ async function saveNotepad() {
         blocks,
         version: '2.28.2'
       }
-    })
+    }, { keepalive })
   } catch (e) {
     console.error('Failed to save notepad:', e)
   }

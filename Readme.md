@@ -32,8 +32,9 @@ Molecore is self-hosted, runs entirely on your own infrastructure, and supports 
 - **Block-based editor** - Text, Headers, Lists, Code, Tables, Images, Audio, Files, Embeds
 - **Hierarchical pages** with subpages and page blocks
 - **Multi-user support** with isolated workspaces via Keycloak/JWT
-- **Optional tools** - Notepad, Calendar, Focus Timer, To-Do List, Dashboard
-- **File uploads** with per-user quotas (20 MB per file, 500 MB per user)
+- **Optional tools** - Notepad, Calendar, Focus Timer, To-Do List, Dashboard, Toolbox (image, PDF, video, audio)
+- **Notion import** - bring over your Notion export as a ZIP
+- **File uploads** with per-user quotas (50 MB per file, 500 MB per user)
 
 ![Molecore Screenshot](molecorescreenshot.png)
 
@@ -53,17 +54,11 @@ Molecore is deployed via Docker Compose and requires a running Keycloak instance
 
 1. Set up your Keycloak server and create a realm + client (see [Keycloak quickstart](https://www.keycloak.org/getting-started/getting-started-docker))
 2. Clone this repo
-3. Copy `.env.example` to `.env` and fill in your values
-4. Create `frontend/.env` with your Keycloak config:
-   ```
-   VITE_KEYCLOAK_URL=https://your-keycloak-server.com
-   VITE_KEYCLOAK_REALM=your-realm
-   VITE_KEYCLOAK_CLIENT_ID=your-client-id
-   ```
-5. Run `docker-compose up -d --build`
+3. Copy `.env.example` to `.env` and fill in your values. `VITE_KEYCLOAK_URL` has to be the public Keycloak URL your browser can reach.
+4. Run `docker-compose up -d --build`
 
-Default upload limits (configurable in `backend/main.py`):
-- Max file size: 20 MB per upload
+Default upload limits (configurable in `backend/uploads.py`):
+- Max file size: 50 MB per upload
 - Max storage per user: 500 MB total
 
 ---

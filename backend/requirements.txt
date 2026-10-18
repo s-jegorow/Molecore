@@ -1,5 +1,4 @@
 annotated-doc==0.0.4
-requests==2.32.3
 annotated-types==0.7.0
 anyio==4.12.1
 click==8.3.1
@@ -11,7 +10,7 @@ psycopg2-binary==2.9.9
 pydantic==2.12.5
 pydantic_core==2.41.5
 python-dotenv==1.0.0
-python-jose[cryptography]==3.4.0
+PyJWT[crypto]==2.10.1
 python-multipart==0.0.21
 SQLAlchemy==2.0.45
 starlette==0.50.0

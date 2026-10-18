@@ -1,8 +1,7 @@
 export default class StrikethroughTool {
   private api: any
-  private button: HTMLElement | null = null
+  private button: HTMLButtonElement | null = null
   private tag: string = 'S'
-  private class: string = 'cdx-strikethrough'
 
   static get isInline() {
     return true
@@ -40,7 +39,7 @@ export default class StrikethroughTool {
     range.insertNode(s)
   }
 
-  checkState(selection: Selection) {
+  checkState(_selection: Selection) {
     const s = this.api.selection.findParentTag(this.tag)
     if (this.button) {
       this.button.classList.toggle('ce-inline-tool--active', !!s)

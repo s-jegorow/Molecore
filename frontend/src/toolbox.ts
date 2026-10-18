@@ -1,8 +1,3 @@
-import { mountImageTool } from './toolbox-image'
-import { mountPdfTool } from './toolbox-pdf'
-import { mountVideoTool } from './toolbox-video'
-import { mountAudioTool } from './toolbox-audio'
-
 type Tab = 'image' | 'pdf' | 'video' | 'audio'
 
 interface ToolDef {
@@ -124,11 +119,18 @@ function openTool(toolId: string, category: Tab) {
   if (backBtn) backBtn.style.display = 'flex'
   toolView.innerHTML = ''
 
+  mountTool(category, toolId, toolView).catch(error => {
+    console.error('Failed to load tool:', error)
+    toolView.textContent = 'Failed to load tool.'
+  })
+}
+
+async function mountTool(category: Tab, toolId: string, toolView: HTMLElement): Promise<void> {
   switch (category) {
-    case 'image': mountImageTool(toolId, toolView); break
-    case 'pdf':   mountPdfTool(toolId, toolView);   break
-    case 'video': mountVideoTool(toolId, toolView); break
-    case 'audio': mountAudioTool(toolId, toolView); break
+    case 'image': (await import('./toolbox-image')).mountImageTool(toolId, toolView); break
+    case 'pdf':   (await import('./toolbox-pdf')).mountPdfTool(toolId, toolView);     break
+    case 'video': (await import('./toolbox-video')).mountVideoTool(toolId, toolView); break
+    case 'audio': (await import('./toolbox-audio')).mountAudioTool(toolId, toolView); break
   }
 }
 

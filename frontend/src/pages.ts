@@ -1,13 +1,9 @@
-import { getPage, getPages, updatePage, deletePage, getPreferences, API_URL } from './api'
+import { getPage, getPages, updatePage, deletePage, getPreferences, uploadFile } from './api'
 import { setActivePage, refreshSidebar } from './ui'
 import { appState } from './state'
 import { Modal } from './Modal'
-import { getToken } from './auth'
-import { applyCalloutForeignKeys, initCalloutObserver } from './CalloutBlock'
+import { initCalloutObserver } from './CalloutBlock'
 
-/**
- * Build breadcrumb navigation showing the path from root to current page
- */
 async function buildBreadcrumbs(pageId: number) {
   const breadcrumbsContainer = document.getElementById('breadcrumbs')
   if (!breadcrumbsContainer) return
@@ -19,7 +15,6 @@ async function buildBreadcrumbs(pageId: number) {
     const path: Array<{ id: number; title: string }> = []
     let currentId: number | null = pageId
 
-    // Build path from current page to root
     while (currentId !== null) {
       const page = pageMap.get(currentId)
       if (!page) break
@@ -28,7 +23,6 @@ async function buildBreadcrumbs(pageId: number) {
       currentId = page.parent_id
     }
 
-    // Render breadcrumbs
     breadcrumbsContainer.innerHTML = ''
     path.forEach((item, index) => {
       const isLast = index === path.length - 1
@@ -63,24 +57,13 @@ async function buildBreadcrumbs(pageId: number) {
   }
 }
 
-/**
- * Update the delete button visibility based on page type
- * Home page cannot be deleted
- */
 function updateDeleteButtonVisibility(isHomePage: boolean) {
   const deleteBtn = document.getElementById('delete-btn')
-  if (!deleteBtn) return
-
-  if (isHomePage) {
-    deleteBtn.style.display = 'none'
-  } else {
-    deleteBtn.style.display = 'flex'
-  }
+  const favoriteBtn = document.getElementById('favorite-btn')
+  if (deleteBtn) deleteBtn.style.display = isHomePage ? 'none' : 'flex'
+  if (favoriteBtn) favoriteBtn.style.display = isHomePage ? 'none' : ''
 }
 
-/**
- * Update the favorite button appearance
- */
 function updateFavoriteButton(isFavorite: boolean) {
   const favoriteBtn = document.getElementById('favorite-btn')
   if (!favoriteBtn) return
@@ -89,14 +72,10 @@ function updateFavoriteButton(isFavorite: boolean) {
   favoriteBtn.title = isFavorite ? 'Remove from favorites' : 'Add to favorites'
 }
 
-/**
- * Update the header background image
- */
 function updateHeaderImage(headerPath: string | null | undefined) {
   const header = document.querySelector('header')
   if (!header) return
 
-  // Set or remove background image
   if (headerPath) {
     (header as HTMLElement).style.backgroundImage = `url('${headerPath}')`
   } else {
@@ -104,11 +83,10 @@ function updateHeaderImage(headerPath: string | null | undefined) {
   }
 }
 
-/**
- * Load a page by ID and render it in the editor
- */
+let loadSeq = 0
+
 export async function loadPage(pageId: number) {
-  // In demo mode, switch from landing page to app on first page load
+  const seq = ++loadSeq
   if (appState.isDemo) {
     const welcomeScreen = document.getElementById('welcome-screen')
     const appContent = document.getElementById('app-content')
@@ -116,54 +94,48 @@ export async function loadPage(pageId: number) {
     if (appContent) appContent.classList.add('active')
   }
 
-  setSyncIndicator('ok')
-  appState.suppressIdleUntil = Date.now() + 800
+  await flushSave(false, true)
 
   try {
     const page = await getPage(pageId)
+    if (seq !== loadSeq) return
 
-    // Reinitialize editor with new page
+    setSyncIndicator('ok')
+    appState.suppressIdleUntil = Date.now() + 800
+    appState.currentPageId = null
+
     if (appState.editor) {
       await appState.editor.isReady
       await appState.editor.clear()
       await appState.editor.render(page.content)
 
-      // Re-init callout observer for new page content + apply immediately
       initCalloutObserver()
-
-      // Clear undo history when loading a new page
-      if (appState.undoManager) {
-        appState.undoManager.clear()
-        await appState.undoManager.captureState()
-        // Trigger undo/redo button update
-        const event = new CustomEvent('undoStateChanged')
-        window.dispatchEvent(event)
-      }
     }
+    if (seq !== loadSeq) return
 
-    // Update page title + title color
     const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
     if (pageTitleInput) {
       pageTitleInput.value = page.title
-      const raw = (page.content as any)?.title_color || ''
-      const titleColor = /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : ''
-      pageTitleInput.style.color = titleColor
-      applyTitleColorIndicator(titleColor)
+      setTitleColor(pageTitleInput, parseTitleColor((page.content as any)?.title_color))
     }
 
     appState.currentPageId = pageId
+    lastSavedSnapshot = await currentSnapshot()
+
+    if (appState.editor && appState.undoManager) {
+      appState.undoManager.clear()
+      await appState.undoManager.captureState()
+      window.dispatchEvent(new CustomEvent('undoStateChanged'))
+    }
+
     setActivePage(pageId)
 
-    // Update breadcrumbs
     await buildBreadcrumbs(pageId)
 
-    // Update favorite button state
     updateFavoriteButton(page.page_type === 'favorite')
 
-    // Update header image
     updateHeaderImage(page.header)
 
-    // Update delete button visibility
     updateDeleteButtonVisibility(page.page_type === 'home')
 
   } catch (error) {
@@ -171,12 +143,8 @@ export async function loadPage(pageId: number) {
   }
 }
 
-/**
- * Navigate to the home page
- */
 export async function navigateToHomePage(): Promise<void> {
   if (appState.isDemo) {
-    // In demo mode, "home" means back to the landing page
     const welcomeScreen = document.getElementById('welcome-screen')
     const appContent = document.getElementById('app-content')
     if (welcomeScreen) welcomeScreen.style.display = ''
@@ -205,9 +173,6 @@ export async function navigateToHomePage(): Promise<void> {
   }
 }
 
-/**
- * Auto-save the current page content
- */
 function setSyncIndicator(status: 'idle' | 'ok' | 'error') {
   const el = document.getElementById('sync-indicator')
   if (!el) return
@@ -216,50 +181,88 @@ function setSyncIndicator(status: 'idle' | 'ok' | 'error') {
   el.title = status === 'ok' ? 'Saved' : status === 'error' ? 'Save failed' : 'Not yet saved'
 }
 
-async function autoSave() {
-  if (!appState.currentPageId || !appState.editor) return
-  if (appState.isDemo) return
-  if (appState.isSaving) return
+let saveTimer: number | null = null
+let dirtyPageId: number | null = null
+let saveInFlight: Promise<void> | null = null
+let lastSavedSnapshot = ''
 
+function clearSaveTimer(): void {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
+}
+
+async function currentSnapshot(): Promise<string> {
+  if (!appState.editor) return ''
+  const content = await appState.editor.save()
+  const titleInput = document.getElementById('page-title') as HTMLInputElement | null
+  return JSON.stringify({
+    blocks: content.blocks,
+    title: titleInput?.value || 'Untitled',
+    color: titleInput?.dataset.titleColor || ''
+  })
+}
+
+async function saveNow(pageId: number, keepalive: boolean): Promise<void> {
   try {
-    appState.isSaving = true
-    await appState.editor.isReady
-    const content = await appState.editor.save()
+    const editor = appState.editor!
+    await editor.isReady
+    const content = await editor.save()
     const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
     const title = pageTitleInput?.value || 'Untitled'
-    const titleColor = pageTitleInput?.style.color || ''
+    const titleColor = pageTitleInput?.dataset.titleColor || ''
     if (titleColor) (content as any).title_color = titleColor
 
-    await updatePage(appState.currentPageId, { content, title })
+    const snapshot = JSON.stringify({ blocks: content.blocks, title, color: titleColor })
+    if (snapshot !== lastSavedSnapshot) {
+      await updatePage(pageId, { content, title }, { keepalive })
+      lastSavedSnapshot = snapshot
+    }
     setSyncIndicator('ok')
   } catch (error) {
     console.error('Auto-save failed:', error)
     setSyncIndicator('error')
-  } finally {
-    appState.isSaving = false
+    if (dirtyPageId === null && appState.currentPageId === pageId) {
+      dirtyPageId = pageId
+      clearSaveTimer()
+      saveTimer = window.setTimeout(() => { flushSave() }, 5000)
+    }
   }
 }
 
-/**
- * Schedule an auto-save with a debounce delay
- */
-export async function scheduleAutoSave(): Promise<void> {
-  if (appState.isDemo) return
-  if (Date.now() > appState.suppressIdleUntil) setSyncIndicator('idle')
-  appState.clearAutoSaveTimeout()
+export async function flushSave(keepalive = false, force = false): Promise<void> {
+  clearSaveTimer()
+  if (saveInFlight) await saveInFlight
+  if (force && appState.currentPageId) dirtyPageId = appState.currentPageId
+  if (dirtyPageId === null) return
+  const pageId = dirtyPageId
+  dirtyPageId = null
+  if (appState.isDemo || !appState.editor || pageId !== appState.currentPageId) return
 
-  appState.autoSaveTimeout = window.setTimeout(() => {
-    autoSave()
-  }, 2000)
+  saveInFlight = saveNow(pageId, keepalive).finally(() => {
+    saveInFlight = null
+  })
+  await saveInFlight
 }
 
-/**
- * Set up the header upload functionality (double-click to upload)
- */
+export function hasPendingSave(): boolean {
+  return dirtyPageId !== null || saveInFlight !== null
+}
+
+export async function scheduleAutoSave(): Promise<void> {
+  if (appState.isDemo) return
+  const pageId = appState.currentPageId
+  if (!pageId) return
+  if (Date.now() > appState.suppressIdleUntil) setSyncIndicator('idle')
+  dirtyPageId = pageId
+  clearSaveTimer()
+  saveTimer = window.setTimeout(() => { flushSave() }, 2000)
+}
+
 export function setupHeaderUpload(): void {
   const headerElement = document.querySelector('header')
   headerElement?.addEventListener('dblclick', async (e) => {
-    // Don't trigger if double-clicking on the title input
     if ((e.target as HTMLElement).id === 'page-title') return
     if (!appState.currentPageId) return
     if (appState.isDemo) return
@@ -270,40 +273,22 @@ export function setupHeaderUpload(): void {
     input.addEventListener('change', async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
+      const pageId = appState.currentPageId
+      if (!pageId) return
 
       try {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('upload_type', 'header')
-
-        const token = await getToken()
-        const response = await fetch(`${API_URL}/api/upload`, {
-          method: 'POST',
-          headers: {
-            ...(token && { 'Authorization': `Bearer ${token}` })
-          },
-          body: formData
-        })
-
-        if (!response.ok) throw new Error('Upload failed')
-
-        const data = await response.json()
-        const headerPath = `${API_URL}${data.url}`
-
-        await updatePage(appState.currentPageId!, { header: headerPath })
-        updateHeaderImage(headerPath)
-      } catch (error) {
+        const headerPath = await uploadFile(file, 'header')
+        await updatePage(pageId, { header: headerPath })
+        if (appState.currentPageId === pageId) updateHeaderImage(headerPath)
+      } catch (error: any) {
         console.error('Failed to upload header:', error)
-        await Modal.error('Failed to upload header image.')
+        await Modal.error(error?.message || 'Failed to upload header image.')
       }
     })
     input.click()
   })
 }
 
-/**
- * Set up the page title input handler (save on blur)
- */
 export function setupPageTitleHandler(): void {
   const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
   pageTitleInput?.addEventListener('blur', async () => {
@@ -313,7 +298,6 @@ export function setupPageTitleHandler(): void {
 
     try {
       await updatePage(appState.currentPageId, { title: newTitle })
-      // Update sidebar title element
       const pageItems = document.querySelectorAll(`[data-page-id="${appState.currentPageId}"]`)
       pageItems.forEach(pageItem => {
         const titleEl = pageItem.querySelector('.page-title')
@@ -327,9 +311,6 @@ export function setupPageTitleHandler(): void {
   })
 }
 
-/**
- * Set up the favorite button toggle handler
- */
 export function setupFavoriteButton(): void {
   const favoriteBtn = document.getElementById('favorite-btn')
   favoriteBtn?.addEventListener('click', async () => {
@@ -337,8 +318,8 @@ export function setupFavoriteButton(): void {
 
     try {
       const page = await getPage(appState.currentPageId)
+      if (page.page_type === 'home') return
 
-      // Toggle between 'favorite' and 'normal'
       const newPageType = page.page_type === 'favorite' ? 'normal' : 'favorite'
 
       await updatePage(appState.currentPageId, { page_type: newPageType })
@@ -350,9 +331,6 @@ export function setupFavoriteButton(): void {
   })
 }
 
-/**
- * Set up the delete button handler
- */
 function setupDeleteButton(): void {
   const deleteBtn = document.getElementById('delete-btn')
   deleteBtn?.addEventListener('click', async () => {
@@ -377,9 +355,6 @@ function setupDeleteButton(): void {
   })
 }
 
-/**
- * Set up the logo click handler to navigate to home page
- */
 function setupLogoHandler(): void {
   const logoElement = document.querySelector('.logo')
   logoElement?.addEventListener('click', async (e) => {
@@ -388,20 +363,15 @@ function setupLogoHandler(): void {
   })
 }
 
-/**
- * Set up auto-save when PageBlock is created
- */
 function setupPageBlockAutoSave(): void {
   window.addEventListener('pageBlockCreated', async () => {
-    // Wait a bit for editor to finish rendering the block
     await new Promise(resolve => setTimeout(resolve, 100))
-    await autoSave()
+    await scheduleAutoSave()
+    await flushSave()
+    await refreshSidebar()
   })
 }
 
-/**
- * Set up navigation from PageBlock clicks
- */
 function setupPageBlockNavigation(): void {
   window.addEventListener('navigateToPage', (e: any) => {
     const pageId = e.detail?.pageId
@@ -411,9 +381,6 @@ function setupPageBlockNavigation(): void {
   })
 }
 
-/**
- * Set up all page-related event listeners
- */
 export function setupPageEventListeners(): void {
   setupHeaderUpload()
   setupPageTitleHandler()
@@ -424,12 +391,21 @@ export function setupPageEventListeners(): void {
   setupPageBlockNavigation()
   setupTitleColorPicker()
   setupDragScroll()
+  setupUnloadSave()
 }
 
-/**
- * Auto-scroll the main content area when dragging a block near the top/bottom edge.
- * EditorJS uses HTML5 drag events, so we listen to dragover/dragend.
- */
+function setupUnloadSave(): void {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushSave(true, true)
+  })
+  window.addEventListener('beforeunload', (e) => {
+    if (!hasPendingSave()) return
+    flushSave(true)
+    e.preventDefault()
+    e.returnValue = ''
+  })
+}
+
 function setupDragScroll(): void {
   const main = document.querySelector('main')
   if (!main) return
@@ -487,6 +463,20 @@ export function applyTitleColorIndicator(color: string): void {
   if (indicator) indicator.style.background = color || 'var(--color-text-primary)'
 }
 
+function parseTitleColor(raw: unknown): string {
+  if (typeof raw !== 'string') return ''
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase()
+  const m = raw.match(/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/)
+  if (!m) return ''
+  return '#' + m.slice(1, 4).map(n => Math.min(255, parseInt(n, 10)).toString(16).padStart(2, '0')).join('')
+}
+
+function setTitleColor(titleInput: HTMLInputElement, color: string): void {
+  titleInput.dataset.titleColor = color
+  titleInput.style.color = color
+  applyTitleColorIndicator(color)
+}
+
 function setupTitleColorPicker(): void {
   const btn = document.getElementById('title-color-btn')
   const titleInput = document.getElementById('page-title') as HTMLInputElement
@@ -495,7 +485,6 @@ function setupTitleColorPicker(): void {
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
 
-    // Remove existing popover
     document.getElementById('title-color-popover')?.remove()
 
     const popover = document.createElement('div')
@@ -511,12 +500,11 @@ function setupTitleColorPicker(): void {
         swatch.classList.add('title-color-swatch--default')
         swatch.textContent = '✕'
       }
-      if (titleInput.style.color === value) swatch.classList.add('active')
+      if ((titleInput.dataset.titleColor || '') === value) swatch.classList.add('active')
 
       swatch.addEventListener('click', (ev) => {
         ev.stopPropagation()
-        titleInput.style.color = value
-        applyTitleColorIndicator(value)
+        setTitleColor(titleInput, value)
         popover.remove()
         scheduleAutoSave()
       })
@@ -525,14 +513,12 @@ function setupTitleColorPicker(): void {
 
     document.body.appendChild(popover)
 
-    // Position below the button, clamped so it never goes off-screen to the right
     const rect = btn.getBoundingClientRect()
     const popoverWidth = popover.getBoundingClientRect().width || 160
     const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 8))
     popover.style.top = `${rect.bottom + 6}px`
     popover.style.left = `${left}px`
 
-    // Close on outside click
     const close = (ev: MouseEvent) => {
       if (!popover.contains(ev.target as Node)) {
         popover.remove()

@@ -9,8 +9,6 @@ export function mountImageTool(id: string, container: HTMLElement) {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function dropZoneHTML(accept: string, labelText: string): string {
   return `
     <label class="toolbox-drop-zone">
@@ -42,20 +40,9 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
     a.href = url
     a.download = filename
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }, 'image/png')
 }
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-// ─── Resize ──────────────────────────────────────────────────────────────────
 
 function mountResize(container: HTMLElement) {
   container.innerHTML = `
@@ -131,8 +118,6 @@ function mountResize(container: HTMLElement) {
     downloadCanvas(canvas, `resized_${w}x${h}.png`)
   })
 }
-
-// ─── Crop ────────────────────────────────────────────────────────────────────
 
 function mountCrop(container: HTMLElement) {
   container.innerHTML = `
@@ -240,7 +225,6 @@ function mountCrop(container: HTMLElement) {
     wIn.value = String(cropW); hIn.value = String(cropH)
   }
 
-  // Manual input sync
   ;[xIn, yIn, wIn, hIn].forEach(inp => {
     inp.addEventListener('input', () => {
       cropX = parseInt(xIn.value) || 0
@@ -259,8 +243,6 @@ function mountCrop(container: HTMLElement) {
     downloadCanvas(out, `cropped.png`)
   })
 }
-
-// ─── Transparent PNG ─────────────────────────────────────────────────────────
 
 function mountTransparent(container: HTMLElement) {
   container.innerHTML = `
@@ -341,8 +323,6 @@ function mountTransparent(container: HTMLElement) {
     downloadCanvas(out, 'transparent.png')
   })
 }
-
-// ─── QR Code ─────────────────────────────────────────────────────────────────
 
 function mountQR(container: HTMLElement) {
   container.innerHTML = `

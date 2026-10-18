@@ -1,4 +1,5 @@
-import { getFFmpeg, fetchFile } from './toolbox-ffmpeg'
+import { getFFmpeg, releaseFFmpeg, fetchFile, safeExt } from './toolbox-ffmpeg'
+import { escapeHtml } from './utils'
 
 export function mountAudioTool(id: string, container: HTMLElement) {
   switch (id) {
@@ -8,8 +9,6 @@ export function mountAudioTool(id: string, container: HTMLElement) {
     case 'speed':   mountChangeSpeed(container);  break
   }
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function audioDropZone(id: string, accept: string, label: string): string {
   return `
@@ -65,11 +64,11 @@ function downloadBlob(blob: Blob, filename: string) {
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function getExt(file: File): string {
-  return file.name.split('.').pop()?.toLowerCase() || 'mp3'
+  return safeExt(file, 'mp3')
 }
 
 function parseTime(timeStr: string): number {
@@ -78,8 +77,6 @@ function parseTime(timeStr: string): number {
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
   return parseFloat(timeStr) || 0
 }
-
-// ─── Extract Audio ────────────────────────────────────────────────────────────
 
 function mountExtractAudio(container: HTMLElement) {
   container.innerHTML = `
@@ -132,16 +129,19 @@ function mountExtractAudio(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-ext-status', '', 'info')
     try {
+      showProgress(container, 'tb-ext-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-ext-progress', pct, `Extracting… ${pct}%`)
       })
-      showProgress(container, 'tb-ext-progress', 0, 'Loading FFmpeg…')
       const inExt = getExt(file)
       const mimeMap: Record<string, string> = {
         mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', ogg: 'audio/ogg'
       }
       await ffmpeg.writeFile(`in.${inExt}`, await fetchFile(file))
-      await ffmpeg.exec(['-i', `in.${inExt}`, '-vn', '-acodec', fmt === 'mp3' ? 'libmp3lame' : fmt === 'aac' ? 'aac' : 'copy', `out.${fmt}`])
+      const codecMap: Record<string, string> = {
+        mp3: 'libmp3lame', wav: 'pcm_s16le', aac: 'aac', ogg: 'libvorbis'
+      }
+      await ffmpeg.exec(['-i', `in.${inExt}`, '-vn', '-acodec', codecMap[fmt] || 'copy', `out.${fmt}`])
       const data = await ffmpeg.readFile(`out.${fmt}`) as Uint8Array
       downloadBlob(new Blob([(data as unknown as ArrayBuffer)], { type: mimeMap[fmt] }), `audio.${fmt}`)
       hideProgress(container, 'tb-ext-progress')
@@ -149,12 +149,12 @@ function mountExtractAudio(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-ext-progress')
       setStatus(container, 'tb-ext-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Trim Audio ───────────────────────────────────────────────────────────────
 
 function mountTrimAudio(container: HTMLElement) {
   container.innerHTML = `
@@ -209,10 +209,10 @@ function mountTrimAudio(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-trim-status', '', 'info')
     try {
+      showProgress(container, 'tb-trim-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-trim-progress', pct, `Trimming… ${pct}%`)
       })
-      showProgress(container, 'tb-trim-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(file)
       await ffmpeg.writeFile(`in.${ext}`, await fetchFile(file))
       await ffmpeg.exec([
@@ -229,12 +229,12 @@ function mountTrimAudio(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-trim-progress')
       setStatus(container, 'tb-trim-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Merge Audio ──────────────────────────────────────────────────────────────
 
 function mountMergeAudio(container: HTMLElement) {
   container.innerHTML = `
@@ -274,7 +274,7 @@ function mountMergeAudio(container: HTMLElement) {
     actions.style.display = 'flex'
     listEl.innerHTML = files.map((f, i) => `
       <div class="toolbox-file-item">
-        <span class="toolbox-file-name">${f.name}</span>
+        <span class="toolbox-file-name">${escapeHtml(f.name)}</span>
         <button class="toolbox-file-remove" data-i="${i}">✕</button>
       </div>
     `).join('')
@@ -297,15 +297,14 @@ function mountMergeAudio(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-amerge-status', '', 'info')
     try {
+      showProgress(container, 'tb-amerge-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-amerge-progress', pct, `Merging… ${pct}%`)
       })
-      showProgress(container, 'tb-amerge-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(files[0])
       for (let i = 0; i < files.length; i++) {
         await ffmpeg.writeFile(`in${i}.${ext}`, await fetchFile(files[i]))
       }
-      // Create concat file
       const concatContent = files.map((_, i) => `file 'in${i}.${ext}'`).join('\n')
       await ffmpeg.writeFile('concat.txt', new TextEncoder().encode(concatContent))
       await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy', `out.${ext}`])
@@ -316,12 +315,12 @@ function mountMergeAudio(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-amerge-progress')
       setStatus(container, 'tb-amerge-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })
 }
-
-// ─── Change Speed ─────────────────────────────────────────────────────────────
 
 function mountChangeSpeed(container: HTMLElement) {
   container.innerHTML = `
@@ -368,10 +367,10 @@ function mountChangeSpeed(container: HTMLElement) {
     btn.disabled = true
     setStatus(container, 'tb-speed-status', '', 'info')
     try {
+      showProgress(container, 'tb-speed-progress', 0, 'Loading FFmpeg…')
       const ffmpeg = await getFFmpeg(pct => {
         showProgress(container, 'tb-speed-progress', pct, `Processing… ${pct}%`)
       })
-      showProgress(container, 'tb-speed-progress', 0, 'Loading FFmpeg…')
       const ext = getExt(file)
       await ffmpeg.writeFile(`in.${ext}`, await fetchFile(file))
       await ffmpeg.exec(['-i', `in.${ext}`, '-filter:a', `atempo=${speed}`, `out.${ext}`])
@@ -382,6 +381,8 @@ function mountChangeSpeed(container: HTMLElement) {
     } catch {
       hideProgress(container, 'tb-speed-progress')
       setStatus(container, 'tb-speed-status', 'Processing failed.', 'error')
+    } finally {
+      await releaseFFmpeg()
     }
     btn.disabled = false
   })

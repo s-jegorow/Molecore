@@ -1,18 +1,15 @@
-import { API_URL } from './api'
-import { getToken } from './auth'
+import { uploadFile } from './api'
 
 export default class ResizableImage {
   private data: { url: string; width?: number }
   private wrapper: HTMLElement | null = null
   private container: HTMLElement | null = null
   private img: HTMLImageElement | null = null
-  private api: any
   private readOnly: boolean
   private block: any
 
-  constructor({ data, api, readOnly, block }: any) {
+  constructor({ data, readOnly, block }: any) {
     this.data = data || { url: '', width: 100 }
-    this.api = api
     this.readOnly = readOnly
     this.block = block
   }
@@ -23,7 +20,7 @@ export default class ResizableImage {
 
     if (this.data.url) {
       this.renderImage()
-    } else {
+    } else if (!this.readOnly) {
       this.renderUploader()
     }
 
@@ -35,7 +32,6 @@ export default class ResizableImage {
 
     this.wrapper.innerHTML = ''
 
-    // Container for image + resize handle
     this.container = document.createElement('div')
     this.container.style.cssText = `
       position: relative;
@@ -59,7 +55,6 @@ export default class ResizableImage {
     this.container.appendChild(this.img)
 
     if (!this.readOnly) {
-      // Resize handle
       const resizeHandle = document.createElement('div')
       resizeHandle.innerHTML = '⇔'
       resizeHandle.style.cssText = `
@@ -83,7 +78,6 @@ export default class ResizableImage {
 
       this.container.appendChild(resizeHandle)
 
-      // Show/hide resize handle on hover
       this.container.addEventListener('mouseenter', () => {
         resizeHandle.style.display = 'flex'
       })
@@ -92,7 +86,6 @@ export default class ResizableImage {
         resizeHandle.style.display = 'none'
       })
 
-      // Resize drag logic
       let startX = 0
       let startWidth = 0
 
@@ -115,13 +108,7 @@ export default class ResizableImage {
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
 
-        // Manually trigger onChange callback to start auto-save timer
-        if ((window as any).editor) {
-          const editorInstance = (window as any).editor
-          if (editorInstance.configuration?.onChange) {
-            editorInstance.configuration.onChange()
-          }
-        }
+        try { this.block?.dispatchChange() } catch (_) {}
       }
 
       resizeHandle.addEventListener('mousedown', (e) => {
@@ -144,7 +131,6 @@ export default class ResizableImage {
 
     this.wrapper.innerHTML = ''
 
-    // Create upload UI similar to @editorjs/image style
     const uploaderContainer = document.createElement('div')
     uploaderContainer.style.cssText = `
       border: 2px dashed #e0e0e0;
@@ -183,35 +169,13 @@ export default class ResizableImage {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
-      // Show loading state
       label.textContent = 'Uploading...'
       uploaderContainer.style.pointerEvents = 'none'
 
-      const formData = new FormData()
-      formData.append('image', file)
-
       try {
-        const token = await getToken()
-
-        const headers: HeadersInit = {}
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-
-        const response = await fetch(`${API_URL}/api/upload`, {
-          method: 'POST',
-          headers,
-          body: formData
-        })
-        const result = await response.json()
-
-        if (result.success && result.file?.url) {
-          this.data.url = result.file.url
-          this.data.width = 100
-          this.renderImage()
-        } else {
-          throw new Error('Upload failed')
-        }
+        this.data.url = await uploadFile(file)
+        this.data.width = 100
+        this.renderImage()
       } catch (error) {
         console.error('Upload failed:', error)
         label.textContent = 'Upload failed. Click to try again.'
@@ -233,6 +197,10 @@ export default class ResizableImage {
       url: this.data.url,
       width: this.data.width || 100
     }
+  }
+
+  static get isReadOnlySupported() {
+    return true
   }
 
   static get toolbox() {

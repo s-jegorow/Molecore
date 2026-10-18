@@ -1,3 +1,5 @@
+import { SPAN_SANITIZE } from './utils'
+
 export default class TooltipTool {
   private api: any
   private button: HTMLButtonElement | null = null
@@ -10,12 +12,7 @@ export default class TooltipTool {
   }
 
   static get sanitize() {
-    return {
-      span: {
-        class: 'cdx-tooltip',
-        'data-tooltip': true,
-      },
-    }
+    return { ...SPAN_SANITIZE }
   }
 
   static get title() {
@@ -74,7 +71,6 @@ export default class TooltipTool {
     wrapper.appendChild(input)
     wrapper.appendChild(applyBtn)
 
-    // Hide by default, show when state is active
     wrapper.hidden = !this._state
 
     this._actionsWrapper = wrapper
@@ -83,9 +79,8 @@ export default class TooltipTool {
 
   private _actionsWrapper: HTMLElement | null = null
 
-  surround(range: Range) {
+  surround(_range: Range) {
     if (this._state) {
-      // Remove tooltip
       const tooltipEl = this.api.selection.findParentTag(this.tag, this.class)
       if (tooltipEl) {
         this._unwrap(tooltipEl)
@@ -93,7 +88,6 @@ export default class TooltipTool {
       this.state = false
       if (this._actionsWrapper) this._actionsWrapper.hidden = true
     } else {
-      // Show input for tooltip text
       this.state = true
       if (this._actionsWrapper) {
         this._actionsWrapper.hidden = false
@@ -120,7 +114,6 @@ export default class TooltipTool {
     try {
       range.surroundContents(span)
     } catch {
-      // If surroundContents fails (partial selection), extract and wrap
       const fragment = range.extractContents()
       span.appendChild(fragment)
       range.insertNode(span)

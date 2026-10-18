@@ -1,18 +1,8 @@
 import { Modal } from './Modal'
-import { API_URL } from './api'
-import { getToken } from './auth'
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
+import { uploadFile } from './api'
+import { escapeHtml } from './utils'
 
 export default class AudioBlock {
-  private api: any
   private readOnly: boolean
   private data: {
     url?: string
@@ -20,10 +10,13 @@ export default class AudioBlock {
   }
   private wrapper: HTMLElement | null = null
 
-  constructor({ data, api, readOnly }: any) {
-    this.api = api
+  constructor({ data, readOnly }: any) {
     this.readOnly = readOnly
     this.data = data || {}
+  }
+
+  static get isReadOnlySupported() {
+    return true
   }
 
   static get toolbox() {
@@ -39,7 +32,7 @@ export default class AudioBlock {
 
     if (this.data.url) {
       this._createAudioPlayer()
-    } else {
+    } else if (!this.readOnly) {
       this._createUploader()
     }
 
@@ -59,7 +52,7 @@ export default class AudioBlock {
           <circle cx="18" cy="16" r="3"></circle>
         </svg>
         <p>Click to upload audio file</p>
-        <p style="font-size: 12px; color: #999;">MP3, WAV, OGG (Max 50MB)</p>
+        <p style="font-size: 12px; color: #999;">MP3, WAV, OGG, M4A, FLAC (Max 50MB)</p>
       </div>
     `
 
@@ -74,7 +67,6 @@ export default class AudioBlock {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
 
-      // Check file size (50MB max)
       if (file.size > 50 * 1024 * 1024) {
         await Modal.error('File too large. Maximum size is 50MB.')
         return
@@ -92,33 +84,14 @@ export default class AudioBlock {
     if (!this.wrapper) return
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('upload_type', 'audio')
-
-      const token = await getToken()
-
-      const headers: HeadersInit = {}
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
-      }
-
-      const response = await fetch(`${API_URL}/api/upload`, {
-        method: 'POST',
-        headers,
-        body: formData
-      })
-
-      if (!response.ok) throw new Error('Upload failed')
-
-      const data = await response.json()
-      this.data.url = `${API_URL}${data.url}`
+      const url = await uploadFile(file, 'audio')
+      this.data.url = url
       this.data.fileName = file.name
 
       this._createAudioPlayer()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload failed:', error)
-      await Modal.error('Failed to upload audio file. Please try again.')
+      await Modal.error(error?.message || 'Failed to upload audio file. Please try again.')
     }
   }
 
@@ -162,7 +135,6 @@ export default class AudioBlock {
     const progressFill = player.querySelector('.audio-progress-fill') as HTMLElement
     const progressContainer = player.querySelector('.audio-progress-container') as HTMLElement
 
-    // Play/Pause
     playBtn.addEventListener('click', () => {
       if (audio.paused) {
         audio.play()
@@ -181,30 +153,26 @@ export default class AudioBlock {
       }
     })
 
-    // Update time
     audio.addEventListener('timeupdate', () => {
       const current = this._formatTime(audio.currentTime)
       currentTimeEl.textContent = current
 
-      const progress = (audio.currentTime / audio.duration) * 100
+      const progress = Number.isFinite(audio.duration) && audio.duration > 0 ? (audio.currentTime / audio.duration) * 100 : 0
       progressFill.style.width = `${progress}%`
     })
 
-    // Load duration
     audio.addEventListener('loadedmetadata', () => {
       const duration = this._formatTime(audio.duration)
       durationEl.textContent = duration
     })
 
-    // Seek
     progressContainer.addEventListener('click', (e) => {
       const rect = progressContainer.getBoundingClientRect()
       const x = e.clientX - rect.left
       const percentage = x / rect.width
-      audio.currentTime = percentage * audio.duration
+      if (Number.isFinite(audio.duration)) audio.currentTime = percentage * audio.duration
     })
 
-    // Reset on end
     audio.addEventListener('ended', () => {
       playBtn.innerHTML = `
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -215,7 +183,6 @@ export default class AudioBlock {
 
     this.wrapper.appendChild(player)
 
-    // Add delete button if not readOnly
     if (!this.readOnly) {
       const deleteBtn = document.createElement('button')
       deleteBtn.classList.add('audio-delete-btn')
@@ -241,7 +208,6 @@ export default class AudioBlock {
   }
 
   destroy() {
-    // Cleanup when block is destroyed
     if (this.wrapper) {
       this.wrapper.innerHTML = ''
     }

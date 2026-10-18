@@ -9,7 +9,6 @@ const keycloakConfig = {
 
 const keycloak = new Keycloak(keycloakConfig)
 
-// Initialize Keycloak authentication
 export async function initKeycloak(): Promise<boolean> {
   try {
     const authenticated = await keycloak.init({
@@ -25,18 +24,15 @@ export async function initKeycloak(): Promise<boolean> {
   }
 }
 
-// Redirect user to login page
 export function login() {
   keycloak.login({ redirectUri: window.location.origin })
 }
 
-// Logout user and clear session
 export function logout() {
   localStorage.clear()
   keycloak.logout()
 }
 
-// Get valid access token, refreshing if necessary
 export async function getToken(): Promise<string | undefined> {
   if (!keycloak.authenticated) {
     return undefined
@@ -56,7 +52,7 @@ export async function getToken(): Promise<string | undefined> {
     return keycloak.token
   } catch (error) {
     if (!navigator.onLine) {
-      // Network is offline — keep the token and let individual requests fail gracefully
+      // offline: keep the token, requests will just fail
       console.warn('Token refresh skipped: offline')
       return keycloak.token
     }
@@ -66,17 +62,14 @@ export async function getToken(): Promise<string | undefined> {
   }
 }
 
-// Check if user is authenticated
 export function isAuthenticated(): boolean {
   return keycloak.authenticated || false
 }
 
-// Get parsed user information from token
 export function getUserInfo() {
   return keycloak.tokenParsed
 }
 
-// Initialize auth UI event listeners
 export function initAuthUI(): void {
   const mobileUserBtn = document.getElementById('mobile-user-btn')
   const settingsLogoutBtn = document.getElementById('settings-logout-btn')
@@ -87,7 +80,6 @@ export function initAuthUI(): void {
     logout()
   })
 
-  // User button: login if not authenticated, open settings if authenticated
   mobileUserBtn?.addEventListener('click', () => {
     if (isAuthenticated()) {
       openSettingsModal()
@@ -96,7 +88,6 @@ export function initAuthUI(): void {
     }
   })
 
-  // Handle session expiration event
   window.addEventListener('sessionExpired', () => {
     const welcomeScreen = document.getElementById('welcome-screen')
     const appContent = document.getElementById('app-content')
@@ -106,7 +97,6 @@ export function initAuthUI(): void {
   })
 }
 
-// Update UI based on authentication state
 export function updateAuthUI(authenticated: boolean): void {
   const mobileUserBtn = document.getElementById('mobile-user-btn')
   const profileUsername = document.getElementById('profile-username')
@@ -134,16 +124,13 @@ export function updateAuthUI(authenticated: boolean): void {
   }
 }
 
-// Helper function to open settings modal
 function openSettingsModal(): void {
   const settingsModal = document.getElementById('settings-modal')
   settingsModal?.classList.add('active')
 
-  // Load storage stats when opening settings
   loadStorageStats()
 }
 
-// Load storage usage statistics
 async function loadStorageStats(): Promise<void> {
   const storageBar = document.getElementById('storage-bar')
   const storageText = document.getElementById('storage-text')
@@ -163,7 +150,6 @@ async function loadStorageStats(): Promise<void> {
     const data = await response.json()
     storageBar.style.width = `${Math.min(data.percentage, 100)}%`
 
-    // Add warning/danger classes based on usage
     storageBar.classList.remove('warning', 'danger')
     if (data.percentage >= 90) {
       storageBar.classList.add('danger')
