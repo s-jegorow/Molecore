@@ -1,3 +1,4 @@
+import os
 import time
 
 import jwt
@@ -164,7 +165,9 @@ def test_upload_size_limit(client, monkeypatch):
 
 def test_storage_usage_and_cleanup(client):
     url = _upload(client, PNG, "a.png").json()["url"]
-    _upload(client, PNG, "orphan.png")
+    orphan = _upload(client, PNG, "orphan.png").json()["url"]
+    old = time.time() - 2 * 24 * 60 * 60
+    os.utime(os.path.join(os.environ["UPLOAD_DIR"], orphan.removeprefix("/uploads/")), (old, old))
     _create(client, "Img", content={"blocks": [{"type": "image", "data": {"url": url}}]})
     usage = client.get("/api/storage-usage").json()
     assert usage["usage_bytes"] == 2 * len(PNG)

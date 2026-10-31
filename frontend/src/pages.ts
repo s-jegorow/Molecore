@@ -337,7 +337,7 @@ function setupDeleteButton(): void {
     if (!appState.currentPageId) return
 
     const { confirmed, checked: cascade } = await Modal.confirmWithCheckbox(
-      'Are you sure you want to delete this page? This action cannot be undone.',
+      'Are you sure you want to delete this page? This action cannot be undone. If you keep the subpages, they will be moved to the top level.',
       'Also delete all subpages',
       'Delete Page'
     )

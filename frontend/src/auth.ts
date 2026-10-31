@@ -29,7 +29,8 @@ export function login() {
 }
 
 export function logout() {
-  localStorage.clear()
+  // only drop user data, keep darkmode/readmode
+  localStorage.removeItem('expandedPages')
   keycloak.logout()
 }
 

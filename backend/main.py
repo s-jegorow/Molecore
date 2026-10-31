@@ -447,6 +447,11 @@ def delete_page(
             Page.user_id == user_id
         ).delete(synchronize_session=False)
     else:
+        # keep subpages, move them to the top level
+        db.query(Page).filter(
+            Page.parent_id == page_id,
+            Page.user_id == user_id
+        ).update({"parent_id": None})
         db.delete(page)
 
     db.commit()
@@ -590,15 +595,20 @@ def cleanup_uploads(
 
         orphaned_files = [f for f in all_files if f not in referenced_files]
 
+        # skip fresh files, they might not be autosaved yet or come back via undo
+        cutoff = time.time() - 24 * 60 * 60
+
         deleted_count = 0
         space_freed = 0
         for filename in orphaned_files:
             file_path = user_dir / filename
             try:
-                file_size = file_path.stat().st_size
+                stat = file_path.stat()
+                if stat.st_mtime > cutoff:
+                    continue
                 file_path.unlink()
                 deleted_count += 1
-                space_freed += file_size
+                space_freed += stat.st_size
             except Exception as e:
                 logger.warning("Error deleting %s: %s", filename, e)
 
