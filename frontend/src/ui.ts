@@ -343,7 +343,7 @@ function createPageItem(
   if (isImageIcon(icon)) {
     const img = document.createElement('img')
     img.src = icon!
-    img.style.cssText = 'width: 20px; height: 20px; object-fit: cover; border-radius: 2px;'
+    img.className = 'page-icon-img'
     iconEl.appendChild(img)
   } else {
     iconEl.textContent = icon || '📄'

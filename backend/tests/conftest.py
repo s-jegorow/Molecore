@@ -38,6 +38,7 @@ main.app.dependency_overrides[get_current_user] = _fake_user
 @pytest.fixture()
 def client():
     Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
     shutil.rmtree(os.environ["UPLOAD_DIR"], ignore_errors=True)
     os.makedirs(os.environ["UPLOAD_DIR"])
     with TestClient(main.app) as c:

@@ -26,7 +26,6 @@ export default class PageBlock implements BlockTool {
 
     this.wrapper = document.createElement('div')
     this.wrapper.classList.add('page-block')
-    this.updateStyles()
 
     this.container.appendChild(this.wrapper)
 
@@ -39,29 +38,10 @@ export default class PageBlock implements BlockTool {
     return this.container
   }
 
-  private updateStyles() {
-    if (!this.wrapper) return
-
-    const isDarkMode = document.body.classList.contains('dark-mode')
-
-    this.wrapper.style.cssText = `
-      padding: 4px 4px;
-      margin: 0;
-      background: transparent;
-      color: ${isDarkMode ? '#a0a0a0' : '#666'};
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.15s ease;
-      border-radius: 4px;
-    `
-  }
-
   async renderExistingPage() {
     if (!this.wrapper) return
 
     this.wrapper.contentEditable = 'false'
-    this.wrapper.style.cursor = 'pointer'
 
     let pageIcon = '📄'
     let exists = true
@@ -81,22 +61,19 @@ export default class PageBlock implements BlockTool {
 
     const iconEl = document.createElement('span')
     iconEl.className = 'page-block-icon'
-    iconEl.style.cssText = 'font-size: 20px; cursor: pointer; display: inline-flex; align-items: center; margin-right: 2px;'
 
     if (isImageIcon(pageIcon)) {
       const img = document.createElement('img')
       img.src = pageIcon
-      img.style.cssText = 'width: 20px; height: 20px; object-fit: cover; border-radius: 2px;'
+      img.className = 'page-icon-img'
       iconEl.appendChild(img)
     } else {
       iconEl.textContent = pageIcon
     }
 
     const title = document.createElement('span')
+    title.className = 'page-block-title'
     title.textContent = this.data.pageTitle || 'Untitled'
-    title.style.flex = '1'
-    title.style.fontWeight = '400'
-    title.style.fontSize = '15px'
 
     this.wrapper.innerHTML = ''
     this.wrapper.appendChild(iconEl)
@@ -104,11 +81,11 @@ export default class PageBlock implements BlockTool {
 
     if (!exists) {
       title.textContent = `${this.data.pageTitle || 'Untitled'} (deleted)`
-      title.style.textDecoration = 'line-through'
-      this.wrapper.style.cursor = 'default'
-      this.wrapper.style.opacity = '0.6'
+      this.wrapper.classList.add('page-block--deleted')
       return
     }
+
+    this.wrapper.classList.add('page-block--link')
 
     iconEl.addEventListener('dblclick', async (e) => {
       e.stopPropagation()
@@ -119,21 +96,6 @@ export default class PageBlock implements BlockTool {
         })
       }
     })
-
-    this.wrapper.onmouseenter = () => {
-      if (this.wrapper && title) {
-        const isDarkMode = document.body.classList.contains('dark-mode')
-        this.wrapper.style.background = isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'
-        title.style.color = isDarkMode ? '#e0e0e0' : '#000'
-      }
-    }
-    this.wrapper.onmouseleave = () => {
-      if (this.wrapper && title) {
-        const isDarkMode = document.body.classList.contains('dark-mode')
-        this.wrapper.style.background = 'transparent'
-        title.style.color = isDarkMode ? '#a0a0a0' : '#666'
-      }
-    }
 
     // mousedown instead of click, otherwise editorjs/dragdrop eat the event
     this.wrapper.addEventListener('mousedown', (e) => {
@@ -152,21 +114,11 @@ export default class PageBlock implements BlockTool {
     if (!this.wrapper) return
 
     this.wrapper.contentEditable = 'false'
-    this.wrapper.style.cursor = 'default'
 
     const input = document.createElement('input')
     input.type = 'text'
+    input.className = 'page-block-input'
     input.placeholder = 'Type page name...'
-    const isDarkMode = document.body.classList.contains('dark-mode')
-    input.style.cssText = `
-      width: 100%;
-      border: none;
-      background: transparent;
-      outline: none;
-      font-size: 14px;
-      font-family: inherit;
-      color: ${isDarkMode ? '#e0e0e0' : '#000'};
-    `
 
     this.wrapper.innerHTML = ''
     this.wrapper.appendChild(input)

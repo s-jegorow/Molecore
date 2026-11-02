@@ -1,5 +1,7 @@
+import csv
 import html
 import json
+import mimetypes
 import re
 import time
 import uuid
@@ -23,29 +25,23 @@ class ImportContext:
     def log(self, msg: str = "") -> None:
         self.log_lines.append(msg)
 
-    def create_page(self, title: str, blocks: list, parent_id: Optional[int], order: int = 0) -> Optional[int]:
-        try:
-            page = Page(
-                title=title[:500],
-                content=json.dumps({
-                    "time": int(time.time() * 1000),
-                    "blocks": blocks,
-                    "version": "2.28.2",
-                }),
-                parent_id=parent_id,
-                page_type="normal",
-                order=order,
-                user_id=self.user_id,
-            )
-            self.db.add(page)
-            self.db.commit()
-            self.db.refresh(page)
-            self.pages_created += 1
-            return page.id
-        except Exception as e:
-            self.db.rollback()
-            self.log(f"  ✗ Error creating '{title}': {e}")
-            return None
+    def create_page(self, title: str, blocks: list, parent_id: Optional[int], order: int = 0) -> int:
+        page = Page(
+            title=title[:500],
+            content=json.dumps({
+                "time": int(time.time() * 1000),
+                "blocks": blocks,
+                "version": "2.28.2",
+            }),
+            parent_id=parent_id,
+            page_type="normal",
+            order=order,
+            user_id=self.user_id,
+        )
+        self.db.add(page)
+        self.db.flush()
+        self.pages_created += 1
+        return page.id
 
     def load_blocks(self, page_id: int) -> Optional[list]:
         page = self.db.query(Page).filter(Page.id == page_id, Page.user_id == self.user_id).first()
@@ -67,11 +63,11 @@ class ImportContext:
         content["blocks"] = blocks
         content["time"] = int(time.time() * 1000)
         page.content = json.dumps(content)
-        self.db.commit()
+        self.db.flush()
 
-    def upload_image(self, file_path: Path) -> Optional[str]:
+    def upload_file(self, file_path: Path, upload_type: str) -> Optional[str]:
         try:
-            return save_upload(self.user_id, file_path.read_bytes(), file_path.name, "auto")
+            return save_upload(self.user_id, file_path.read_bytes(), file_path.name, upload_type)
         except UploadError as e:
             self.log(f"  ⚠ Upload failed: {e.detail}")
         except Exception as e:
@@ -121,6 +117,59 @@ def _clean_title(text: str) -> str:
     text = re.sub(r'~~(.+?)~~', r'\1', text)
     text = re.sub(r'`([^`]+)`', r'\1', text)
     return html.unescape(text).strip()
+
+
+def _resolve_export_file(rel_path: str, page_dir: str, ctx: "ImportContext") -> Optional[Path]:
+    file_rel = unquote(rel_path)
+    file_full = (Path(page_dir) / file_rel).resolve()
+    try:
+        file_full.relative_to(Path(page_dir).resolve())
+    except ValueError:
+        ctx.log(f"  ⚠ Skipping file outside export directory: {file_rel}")
+        return None
+    return file_full
+
+
+def _attachment_block(rel_path: str, page_dir: str, ctx: "ImportContext") -> Optional[dict]:
+    file_full = _resolve_export_file(rel_path, page_dir, ctx)
+    if file_full is None or not file_full.is_file():
+        return None
+    ctx.log(f"    ↑ Uploading {file_full.name}")
+    url = ctx.upload_file(file_full, "file")
+    if not url:
+        return None
+    return {
+        "type": "file",
+        "data": {
+            "url": url,
+            "fileName": file_full.name,
+            "fileSize": file_full.stat().st_size,
+            "fileType": mimetypes.guess_type(file_full.name)[0] or "",
+        },
+    }
+
+
+_BULLET_RE = re.compile(r'^(\s*)[-*+]\s+(.*)')
+_NUMBER_RE = re.compile(r'^(\s*)\d+[.)]\s+(.*)')
+
+
+def _parse_list(lines: list, i: int, indent: int, ordered: bool):
+    item_re = _NUMBER_RE if ordered else _BULLET_RE
+    items = []
+    while i < len(lines):
+        m = item_re.match(lines[i])
+        if not m or len(m.group(1)) != indent:
+            break
+        item = {"content": format_inline(m.group(2)), "items": []}
+        i += 1
+        if i < len(lines):
+            next_bullet = _BULLET_RE.match(lines[i])
+            next_number = _NUMBER_RE.match(lines[i])
+            sub_m = next_bullet or next_number
+            if sub_m and len(sub_m.group(1)) > indent:
+                item["items"], i = _parse_list(lines, i, len(sub_m.group(1)), ordered=next_bullet is None)
+        items.append(item)
+    return items, i
 
 
 def _parse_lines(lines: list, start: int, page_dir: str, ctx: "ImportContext", inside_callout: bool = False) -> list:
@@ -190,7 +239,8 @@ def _parse_lines(lines: list, start: int, page_dir: str, ctx: "ImportContext", i
 
         hm = re.match(r'^(#{1,6})\s+(.+)$', line)
         if hm:
-            level = len(hm.group(1))
+            # editor only knows h1-h3
+            level = min(len(hm.group(1)), 3)
             text = format_inline(hm.group(2))
             blocks.append({"type": "header", "data": {"text": text, "level": level}})
             i += 1
@@ -198,28 +248,29 @@ def _parse_lines(lines: list, start: int, page_dir: str, ctx: "ImportContext", i
 
         # greedy so filenames like "title (subtitle).md" still match
         link_m = re.match(r'^\[([^\]]+)\]\((.+)\)\s*$', stripped)
-        if link_m and re.search(r'\.(md|pdf|PDF)$', link_m.group(2)):
+        if link_m and link_m.group(2).lower().endswith('.md'):
             if inside_callout:
                 title = link_m.group(1)
-                ext = link_m.group(2).rsplit('.', 1)[-1].lower()
-                icon = '📎' if ext == 'pdf' else '📄'
-                blocks.append({"type": "paragraph", "data": {"text": f"{icon} {format_inline(title)}"}})
+                blocks.append({"type": "paragraph", "data": {"text": f"📄 {format_inline(title)}"}})
             i += 1
             continue
 
+        if link_m and not re.match(r'^[a-z]+:', link_m.group(2)):
+            file_block = _attachment_block(link_m.group(2), page_dir, ctx)
+            if file_block:
+                blocks.append(file_block)
+                i += 1
+                continue
+
         img_m = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)\s*$', stripped)
         if img_m:
-            img_rel = unquote(img_m.group(2))
-            img_full = (Path(page_dir) / img_rel).resolve()
-            try:
-                img_full.relative_to(Path(page_dir).resolve())
-            except ValueError:
-                ctx.log(f"  ⚠ Skipping image outside export directory: {img_rel}")
+            img_full = _resolve_export_file(img_m.group(2), page_dir, ctx)
+            if img_full is None:
                 i += 1
                 continue
             if img_full.exists():
                 ctx.log(f"    ↑ Uploading {img_full.name}")
-                url = ctx.upload_image(img_full)
+                url = ctx.upload_file(img_full, "auto")
                 if url:
                     blocks.append({"type": "image", "data": {"url": url, "width": 100}})
             else:
@@ -255,45 +306,13 @@ def _parse_lines(lines: list, start: int, page_dir: str, ctx: "ImportContext", i
             blocks.append({"type": "list", "data": {"style": "checklist", "items": items}})
             continue
 
-        if re.match(r'^\s*[-*+]\s+', line):
-            def _collect_list_items(lines, i, base_indent):
-                items = []
-                while i < len(lines):
-                    m = re.match(r'^(\s*)[-*+]\s+(.*)', lines[i])
-                    if not m:
-                        break
-                    indent = len(m.group(1))
-                    if indent < base_indent:
-                        break
-                    text = format_inline(m.group(2))
-                    i += 1
-                    sub_items = []
-                    while i < len(lines):
-                        sm = re.match(r'^(\s*)[-*+]\s+(.*)', lines[i])
-                        if not sm:
-                            break
-                        sub_indent = len(sm.group(1))
-                        if sub_indent <= indent:
-                            break
-                        sub_items.append({"content": format_inline(sm.group(2)), "items": []})
-                        i += 1
-                    item = {"content": text, "items": sub_items}
-                    items.append(item)
-                return items, i
-
-            base_m = re.match(r'^(\s*)', line)
-            base_indent = len(base_m.group(1)) if base_m else 0
-            items, i = _collect_list_items(lines, i, base_indent)
-            blocks.append({"type": "list", "data": {"style": "unordered", "items": items}})
-            continue
-
-        if re.match(r'^\s*\d+[.)]\s+', line):
-            items = []
-            while i < len(lines) and re.match(r'^\s*\d+[.)]\s+', lines[i]):
-                text = re.sub(r'^\s*\d+[.)]\s+', '', lines[i])
-                items.append({"content": format_inline(text), "items": []})
-                i += 1
-            blocks.append({"type": "list", "data": {"style": "ordered", "items": items}})
+        bullet_m = _BULLET_RE.match(line)
+        number_m = _NUMBER_RE.match(line)
+        if bullet_m or number_m:
+            ordered = bullet_m is None
+            list_m = bullet_m or number_m
+            items, i = _parse_list(lines, i, len(list_m.group(1)), ordered)
+            blocks.append({"type": "list", "data": {"style": "ordered" if ordered else "unordered", "items": items}})
             continue
 
         para_lines = [line]
@@ -318,7 +337,7 @@ def parse_markdown(md_content: str, page_dir: str, ctx: "ImportContext") -> tupl
     for b in blocks:
         if b.get("type") == "paragraph":
             text = b.get("data", {}).get("text", "")
-            m = re.match(r'^[📄📎]\s+(.+)$', text)
+            m = re.match(r'^📄\s+(.+)$', text)
             if m:
                 callout_titles.add(_clean_title(m.group(1)))
     return blocks, callout_titles
@@ -360,7 +379,7 @@ def replace_callout_page_refs(page_id: int, children: list, ctx: "ImportContext"
         for b in blocks:
             if b.get("type") == "paragraph":
                 text = b.get("data", {}).get("text", "")
-                m = re.match(r'^[📄📎]\s+(.+)$', text)
+                m = re.match(r'^📄\s+(.+)$', text)
                 if m:
                     ref_title = _clean_title(m.group(1))
                     match = child_map.get(ref_title)
@@ -395,6 +414,25 @@ def append_page_blocks(page_id: int, child_pages: list, ctx: "ImportContext"):
         ctx.save_blocks(page_id, blocks)
     except Exception as e:
         ctx.log(f"  ⚠ Could not append page blocks: {e}")
+
+
+def _database_table_blocks(db_dir: Path, ctx: "ImportContext") -> list:
+    # notion puts the database rows into a csv next to the folder, _all.csv is a duplicate
+    csv_file = db_dir.parent / f"{db_dir.name}.csv"
+    if not csv_file.is_file():
+        return []
+    try:
+        with csv_file.open(encoding="utf-8-sig", newline="") as f:
+            rows = [row for row in csv.reader(f) if row]
+    except Exception as e:
+        ctx.log(f"  ⚠ Could not read {csv_file.name}: {e}")
+        return []
+    if not rows:
+        return []
+
+    width = max(len(row) for row in rows)
+    content = [[html.escape(cell) for cell in row] + [""] * (width - len(row)) for row in rows]
+    return [{"type": "table", "data": {"withHeadings": True, "content": content}}]
 
 
 def process_directory(
@@ -461,9 +499,9 @@ def process_directory(
         if not title:
             continue
         ctx.log(f"\n{indent}📁 {title}")
-        page_id = ctx.create_page(title, [], parent_id, order)
+        page_id = ctx.create_page(title, _database_table_blocks(sub_dir, ctx), parent_id, order)
         if page_id:
-            ctx.log(f"{indent}  ✓ id={page_id} (database stub)")
+            ctx.log(f"{indent}  ✓ id={page_id} (database)")
             created.append((page_id, title))
             children = process_directory(sub_dir, page_id, ctx, depth + 1)
             if children:

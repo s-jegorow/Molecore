@@ -158,8 +158,8 @@ def test_upload_file_blocklist_and_attachment(client):
 def test_upload_size_limit(client, monkeypatch):
     import uploads
     monkeypatch.setattr(uploads, "MAX_FILE_SIZE", 10)
-    import main
-    monkeypatch.setattr(main, "MAX_FILE_SIZE", 10)
+    from routers import files
+    monkeypatch.setattr(files, "MAX_FILE_SIZE", 10)
     assert _upload(client, PNG, "a.png").status_code == 413
 
 
@@ -235,6 +235,68 @@ def test_notion_import(client):
     assert sorted(page_blocks) == ["Child & Co", "Other"]
     image = next(b for b in blocks if b["type"] == "image")
     assert client.get(image["data"]["url"]).status_code == 200
+
+
+NOTION_EXTRAS_ZIP = {
+    "Export/Notes 0123456789abcdef0123456789abcdef.md": (
+        "# Notes\n\n"
+        "#### Small heading\n\n"
+        "- a\n  - b\n    - c\n- d\n\n"
+        "1. one\n   1. one.one\n2. two\n\n"
+        "[report.pdf](Notes/report.pdf)\n\n"
+        "[gone.pdf](Notes/gone.pdf)\n"
+    ),
+    "Export/Notes/report.pdf": b"%PDF-1.4 test",
+    "Export/Tasks abcdefabcdefabcdefabcdefabcdefab/Task One.md": "# Task One\n",
+    "Export/Tasks abcdefabcdefabcdefabcdefabcdefab.csv": "\ufeffName,Status\nTask One,Done\n",
+    "Export/Tasks abcdefabcdefabcdefabcdefabcdefab_all.csv": "\ufeffName,Status,Extra\nTask One,Done,x\n",
+}
+
+
+def test_notion_import_extras(client):
+    r = client.post("/api/import/notion", files={"zip_file": ("export.zip", make_zip(NOTION_EXTRAS_ZIP), "application/zip")})
+    assert r.status_code == 200, r.text
+    assert r.json()["pages_created"] == 3
+
+    pages = {p["title"]: p for p in client.get("/api/pages").json()}
+    notes = client.get(f"/api/pages/{pages['Notes']['id']}").json()["content"]["blocks"]
+
+    assert notes[0] == {"type": "header", "data": {"text": "Small heading", "level": 3}}
+
+    bullets = notes[1]["data"]
+    assert bullets["style"] == "unordered"
+    assert [item["content"] for item in bullets["items"]] == ["a", "d"]
+    assert bullets["items"][0]["items"][0]["items"][0]["content"] == "c"
+
+    numbers = notes[2]["data"]
+    assert numbers["style"] == "ordered"
+    assert [item["content"] for item in numbers["items"]] == ["one", "two"]
+    assert numbers["items"][0]["items"][0]["content"] == "one.one"
+
+    file_block = notes[3]
+    assert file_block["type"] == "file"
+    assert file_block["data"]["fileName"] == "report.pdf"
+    assert file_block["data"]["fileType"] == "application/pdf"
+    assert client.get(file_block["data"]["url"]).status_code == 200
+
+    assert notes[4]["type"] == "paragraph" and "gone.pdf" in notes[4]["data"]["text"]
+
+    tasks = client.get(f"/api/pages/{pages['Tasks']['id']}").json()["content"]["blocks"]
+    assert tasks[0]["type"] == "table"
+    assert tasks[0]["data"]["content"] == [["Name", "Status"], ["Task One", "Done"]]
+    assert tasks[1]["type"] == "page" and tasks[1]["data"]["pageTitle"] == "Task One"
+
+
+def test_notion_import_is_all_or_nothing(client, monkeypatch):
+    import notion_importer
+
+    def broken(_md_file):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(notion_importer, "find_subdir_for_md", broken)
+    r = client.post("/api/import/notion", files={"zip_file": ("export.zip", make_zip(NOTION_ZIP), "application/zip")})
+    assert r.status_code == 500
+    assert [p["page_type"] for p in client.get("/api/pages").json()] == ["home"]
 
 
 def test_notion_import_parent_must_belong_to_user(client, as_user):
