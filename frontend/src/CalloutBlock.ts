@@ -108,30 +108,41 @@ export default class CalloutBlock {
 
 const _headerPositions = new Map<string, number>()
 let _fixingHeaderFk: string | null = null
+let _draggedBlock: Element | null = null
+let _draggedFromIdx = -1
+
+function _pathOf(el: Element | null | undefined): string[] {
+  const path = el?.getAttribute('data-callout-path')
+  return path ? path.split(' ') : []
+}
+
+function _isInCallout(el: Element | null | undefined, fk: string): boolean {
+  return _pathOf(el).includes(fk)
+}
+
+function _headerFkOf(el: Element | null | undefined): string | null {
+  return el?.querySelector('.callout-block-header')?.getAttribute('data-callout-fk') || null
+}
 
 function _getHeaderIdx(fk: string): number {
   const blocks = Array.from(document.querySelectorAll('.ce-block'))
-  for (let i = 0; i < blocks.length; i++) {
-    const h = (blocks[i] as HTMLElement).querySelector('.callout-block-header') as HTMLElement
-    if (h?.getAttribute('data-callout-fk') === fk) return i
-  }
-  return -1
+  return blocks.findIndex(b => _headerFkOf(b) === fk)
 }
 
 function _getNextChildToMove(fk: string, currentHeaderIdx: number, movedDown: boolean): number {
   const blocks = Array.from(document.querySelectorAll('.ce-block'))
   const children: number[] = []
   blocks.forEach((b, i) => {
-    if (i !== currentHeaderIdx && (b as HTMLElement).getAttribute('data-callout-fk') === fk) {
+    if (i !== currentHeaderIdx && _isInCallout(b, fk)) {
       children.push(i)
     }
   })
-  children.sort((a, b) => a - b)
 
   if (children.every((ci, i) => ci === currentHeaderIdx + 1 + i)) return -1
 
   if (movedDown) {
-    return children.find(ci => ci < currentHeaderIdx) ?? -1
+    const childrenAbove = children.filter(ci => ci < currentHeaderIdx)
+    return childrenAbove.length > 0 ? childrenAbove[childrenAbove.length - 1] : -1
   } else {
     for (let i = children.length - 1; i >= 0; i--) {
       if (children[i] !== currentHeaderIdx + 1 + i) return children[i]
@@ -140,79 +151,97 @@ function _getNextChildToMove(fk: string, currentHeaderIdx: number, movedDown: bo
   }
 }
 
+function _adoptDropPosition(blocks: Element[], dragged: Element) {
+  const fk = _headerFkOf(dragged)
+  const group = fk ? blocks.filter(b => b === dragged || _isInCallout(b, fk)) : [dragged]
+  const first = blocks.indexOf(group[0])
+  const last = blocks.indexOf(group[group.length - 1])
+
+  const before = blocks[first - 1]
+  const beforeFk = _headerFkOf(before)
+  const insideBefore = beforeFk ? [..._pathOf(before), beforeFk] : _pathOf(before)
+  const insideAfter = _pathOf(blocks[last + 1])
+  const newAncestors: string[] = []
+  while (
+    newAncestors.length < Math.min(insideBefore.length, insideAfter.length) &&
+    insideBefore[newAncestors.length] === insideAfter[newAncestors.length]
+  ) {
+    newAncestors.push(insideBefore[newAncestors.length])
+  }
+
+  const oldAncestorCount = _pathOf(dragged).length
+  group.forEach(el => {
+    const path = [...newAncestors, ..._pathOf(el).slice(oldAncestorCount)]
+    if (path.length > 0) el.setAttribute('data-callout-path', path.join(' '))
+    else el.removeAttribute('data-callout-path')
+  })
+}
+
 export function applyCalloutForeignKeys(): boolean {
   try {
-    const allBlocks = document.querySelectorAll('.ce-block')
-    const blockArray = Array.from(allBlocks)
+    let blockArray = Array.from(document.querySelectorAll('.ce-block'))
 
     // editorjs only moves the dragged block, so we drag the callout children along ourselves
-    if (!_fixingHeaderFk) {
-      const editor = appState.editor as any
-      if (editor) {
-        for (let idx = 0; idx < blockArray.length; idx++) {
-          const block = blockArray[idx] as HTMLElement
-          const header = block.querySelector('.callout-block-header') as HTMLElement
-          if (!header) continue
+    const editor = appState.editor
+    if (!_fixingHeaderFk && editor) {
+      for (let idx = 0; idx < blockArray.length; idx++) {
+        const fk = _headerFkOf(blockArray[idx])
+        if (!fk) continue
 
-          const fk = header.getAttribute('data-callout-fk')
-          if (!fk) continue
+        const prevIdx = _headerPositions.get(fk)
+        _headerPositions.set(fk, idx)
 
-          const prevIdx = _headerPositions.get(fk)
-          _headerPositions.set(fk, idx)
+        if (prevIdx === undefined || prevIdx === idx) continue
 
-          if (prevIdx === undefined || prevIdx === idx) continue
+        const movedDown = idx > prevIdx
 
-          const movedDown = idx > prevIdx
-
-          let moveCount = 0
-          for (let attempt = 0; attempt < 50; attempt++) {
-            const hIdx = _getHeaderIdx(fk)
-            if (hIdx < 0) break
-            const childIdx = _getNextChildToMove(fk, hIdx, movedDown)
-            if (childIdx < 0) break
-            editor.blocks.move(hIdx + 1, childIdx)
-            moveCount++
-          }
-
-          const finalIdx = _getHeaderIdx(fk)
-          if (finalIdx >= 0) _headerPositions.set(fk, finalIdx)
-
-          if (moveCount > 0) {
-            _fixingHeaderFk = fk
-            setTimeout(() => { _fixingHeaderFk = null }, 500)
-            return false
-          }
-          // moveCount 0 = header just shifted because something got inserted above, no real drag
+        let moveCount = 0
+        for (let attempt = 0; attempt < 50; attempt++) {
+          const hIdx = _getHeaderIdx(fk)
+          if (hIdx < 0) break
+          const childIdx = _getNextChildToMove(fk, hIdx, movedDown)
+          if (childIdx < 0) break
+          editor.blocks.move(childIdx < hIdx ? hIdx : hIdx + 1, childIdx)
+          moveCount++
         }
+
+        const finalIdx = _getHeaderIdx(fk)
+        if (finalIdx >= 0) _headerPositions.set(fk, finalIdx)
+
+        if (moveCount > 0) {
+          _fixingHeaderFk = fk
+          setTimeout(() => { _fixingHeaderFk = null }, 500)
+          blockArray = Array.from(document.querySelectorAll('.ce-block'))
+          break
+        }
+        // moveCount 0 = header just shifted because something got inserted above, no real drag
       }
     }
 
-    if (!_fixingHeaderFk) {
-      blockArray.forEach((block, idx) => {
-        const header = block.querySelector('.callout-block-header') as HTMLElement
-        if (!header) return
-        const fk = header.getAttribute('data-callout-fk')
-        if (!fk) return
-        const storedItems = parseInt(header.getAttribute('data-callout-items') || '0', 10)
-        if (storedItems <= 0) return
-        if (!blockArray.some(b => (b as HTMLElement).getAttribute('data-callout-fk') === fk)) return
-        const scanLimit = storedItems + 1
-        let newItems = 0
-        for (let i = 1; i <= scanLimit; i++) {
-          const child = blockArray[idx + i] as HTMLElement | undefined
-          if (!child) break
-          if (child.getAttribute('data-callout-fk') === fk) newItems = i
-        }
-        if (newItems !== storedItems) header.setAttribute('data-callout-items', String(newItems))
-      })
+    if (_draggedBlock && blockArray.includes(_draggedBlock) && blockArray.indexOf(_draggedBlock) !== _draggedFromIdx) {
+      _adoptDropPosition(blockArray, _draggedBlock)
+      _draggedBlock = null
     }
+
+    blockArray.forEach((block, idx) => {
+      const header = block.querySelector('.callout-block-header') as HTMLElement
+      if (!header) return
+      const fk = header.getAttribute('data-callout-fk')
+      if (!fk || !header.hasAttribute('data-callout-marked')) return
+      const storedItems = parseInt(header.getAttribute('data-callout-items') || '0', 10)
+      let newItems = 0
+      for (let i = idx + 1; i < blockArray.length; i++) {
+        if (_isInCallout(blockArray[i], fk)) newItems = i - idx
+      }
+      if (newItems !== storedItems) _setCalloutItems(header, newItems)
+    })
 
     blockArray.forEach(block => {
-      const el = block as HTMLElement
-      if (el.hasAttribute('data-callout-fk')) {
-        el.removeAttribute('data-callout-fk')
-        el.removeAttribute('data-callout-color')
-      }
+      block.removeAttribute('data-callout-fk')
+      block.removeAttribute('data-callout-color')
+      block.removeAttribute('data-callout-path')
+      block.removeAttribute('data-callout-parent-color')
+      block.removeAttribute('data-callout-last')
     })
 
     let applied = false
@@ -222,13 +251,25 @@ export function applyCalloutForeignKeys(): boolean {
       const fk = header.getAttribute('data-callout-fk')
       const items = parseInt(header.getAttribute('data-callout-items') || '0', 10)
       const color = header.getAttribute('data-callout-color') || 'black'
-      if (!fk || items <= 0) return
+      if (!fk) return
+      header.setAttribute('data-callout-marked', '')
       for (let i = 1; i <= items; i++) {
         const child = blockArray[idx + i] as HTMLElement | undefined
         if (!child) break
+        const outerColor = child.getAttribute('data-callout-color')
+        if (outerColor) child.setAttribute('data-callout-parent-color', outerColor)
+        const outerPath = child.getAttribute('data-callout-path')
+        child.setAttribute('data-callout-path', outerPath ? `${outerPath} ${fk}` : fk)
         child.setAttribute('data-callout-fk', fk)
         child.setAttribute('data-callout-color', color)
         applied = true
+      }
+    })
+
+    blockArray.forEach((block, idx) => {
+      const fk = block.getAttribute('data-callout-fk')
+      if (fk && !_isInCallout(blockArray[idx + 1], fk)) {
+        block.setAttribute('data-callout-last', '')
       }
     })
 
@@ -238,6 +279,79 @@ export function applyCalloutForeignKeys(): boolean {
     return false
   }
 }
+
+function _handleDragStart(event: DragEvent) {
+  const target = event.target as HTMLElement
+  if (!target.closest?.('.codex-editor')) return
+  const blocks = Array.from(document.querySelectorAll('.ce-block'))
+  const currentIdx = appState.editor?.blocks.getCurrentBlockIndex() ?? -1
+  const block = target.closest('.ce-block') || blocks[currentIdx]
+  if (!block) return
+  _draggedBlock = block
+  _draggedFromIdx = blocks.indexOf(block)
+}
+
+function _handleDragEnd() {
+  setTimeout(() => { _draggedBlock = null }, 1000)
+}
+
+const ENTER_BLOCK_TYPES = ['paragraph', 'header']
+
+function _getCalloutHeader(fk: string): HTMLElement | null {
+  return document.querySelector(`.callout-block-header[data-callout-fk="${CSS.escape(fk)}"]`)
+}
+
+function _setCalloutItems(header: HTMLElement, items: number) {
+  header.setAttribute('data-callout-items', String(items))
+  const headerBlock = header.closest('.ce-block') as HTMLElement | null
+  if (headerBlock) {
+    appState.editor?.blocks.getBlockByElement(headerBlock)?.dispatchChange()
+  }
+}
+
+function _handleCalloutEnter(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+
+  const editor = appState.editor
+  const block = (event.target as HTMLElement).closest('.ce-block') as HTMLElement | null
+  if (!editor || !block) return
+
+  const fk = block.getAttribute('data-callout-fk')
+  if (!fk) return
+
+  const header = _getCalloutHeader(fk)
+  if (!header) return
+
+  const nextBlock = block.nextElementSibling as HTMLElement | null
+  if (_isInCallout(nextBlock, fk)) return
+
+  const blockType = editor.blocks.getBlockByElement(block)?.name || ''
+  const path = block.getAttribute('data-callout-path') || fk
+  const parentPath = path.split(' ').slice(0, -1).join(' ')
+  const items = parseInt(header.getAttribute('data-callout-items') || '0', 10)
+  const isEmpty = ENTER_BLOCK_TYPES.includes(blockType) && (block.textContent || '').trim() === ''
+
+  if (isEmpty && items > 1) {
+    event.preventDefault()
+    event.stopPropagation()
+    block.setAttribute('data-callout-path', parentPath)
+    _setCalloutItems(header, items - 1)
+    applyCalloutForeignKeys()
+    return
+  }
+
+  const insertedPath = isEmpty ? parentPath : path
+  if (!insertedPath) return
+
+  setTimeout(() => {
+    const insertedBlock = block.nextElementSibling as HTMLElement | null
+    if (!insertedBlock || insertedBlock === nextBlock) return
+    insertedBlock.setAttribute('data-callout-path', insertedPath)
+    applyCalloutForeignKeys()
+  }, 20)
+}
+
+let _keydownTarget: Element | null = null
 
 let _observer: MutationObserver | null = null
 let _debounce: ReturnType<typeof setTimeout> | null = null
@@ -265,6 +379,17 @@ export function initCalloutObserver() {
   })
 
   _observer.observe(redactor, { childList: true, subtree: true })
+
+  document.removeEventListener('dragstart', _handleDragStart, true)
+  document.removeEventListener('dragend', _handleDragEnd, true)
+  document.addEventListener('dragstart', _handleDragStart, true)
+  document.addEventListener('dragend', _handleDragEnd, true)
+
+  if (_keydownTarget !== redactor) {
+    _keydownTarget?.removeEventListener('keydown', _handleCalloutEnter as EventListener, true)
+    redactor.addEventListener('keydown', _handleCalloutEnter as EventListener, true)
+    _keydownTarget = redactor
+  }
 
   applyCalloutForeignKeys()
 

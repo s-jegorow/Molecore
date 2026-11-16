@@ -617,6 +617,10 @@ main {
 .ce-popover,
 .ce-inline-toolbar,
 .ce-conversion-toolbar,
+.ce-toolbar {
+  z-index: var(--z-toolbar);
+}
+
 .ce-settings,
 .ce-toolbar__plus,
 .ce-toolbar__settings-btn,
@@ -2954,40 +2958,90 @@ body.read-mode main {
 
 /* color variants */
 .ce-block[data-callout-color="black"] {
+  --callout-bg: #1e1e1e;
   background: #1e1e1e;
   color: #ffffff;
 }
 .ce-block[data-callout-color="blue"] {
+  --callout-bg: #0d3a5c;
   background: #0d3a5c;
   color: #ffffff;
 }
 .ce-block[data-callout-color="red"] {
+  --callout-bg: #5c1010;
   background: #5c1010;
   color: #ffffff;
 }
 .ce-block[data-callout-color="orange"] {
+  --callout-bg: #6b2a0f;
   background: #6b2a0f;
   color: #ffffff;
 }
 .ce-block[data-callout-color="green"] {
+  --callout-bg: #1a4d24;
   background: #1a4d24;
   color: #ffffff;
 }
 .ce-block[data-callout-color="purple"] {
+  --callout-bg: #3d2470;
   background: #3d2470;
   color: #ffffff;
 }
 .ce-block[data-callout-color="pink"] {
+  --callout-bg: #6b1e42;
   background: #6b1e42;
   color: #ffffff;
 }
 .ce-block[data-callout-color="lightgray"] {
+  --callout-bg: #f5f5f5;
   background: #f5f5f5;
   color: #000000;
 }
 .ce-block[data-callout-color="lightgray"],
 .ce-block[data-callout-color="lightgray"]:not(:has(+ .ce-block[data-callout-color])) {
   border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* nested callouts */
+.ce-block[data-callout-parent-color="black"] { --callout-parent-bg: #1e1e1e; }
+.ce-block[data-callout-parent-color="blue"] { --callout-parent-bg: #0d3a5c; }
+.ce-block[data-callout-parent-color="red"] { --callout-parent-bg: #5c1010; }
+.ce-block[data-callout-parent-color="orange"] { --callout-parent-bg: #6b2a0f; }
+.ce-block[data-callout-parent-color="green"] { --callout-parent-bg: #1a4d24; }
+.ce-block[data-callout-parent-color="purple"] { --callout-parent-bg: #3d2470; }
+.ce-block[data-callout-parent-color="pink"] { --callout-parent-bg: #6b1e42; }
+.ce-block[data-callout-parent-color="lightgray"] { --callout-parent-bg: #f5f5f5; }
+
+.ce-block[data-callout-color]:has(.callout-block-header) {
+  margin-top: 0 !important;
+  padding: 8px 24px 0 !important;
+}
+
+.ce-block[data-callout-parent-color] {
+  background: var(--callout-parent-bg) !important;
+  padding: 0 24px !important;
+}
+
+.ce-block:has(.callout-block-header) + .ce-block[data-callout-parent-color] {
+  padding-top: 0 !important;
+}
+
+.ce-block[data-callout-parent-color] > .ce-block__content {
+  background: var(--callout-bg);
+  padding: 8px 24px;
+}
+
+.ce-block:has(.callout-block-header) + .ce-block[data-callout-parent-color] > .ce-block__content {
+  padding-top: 12px;
+}
+
+.ce-block[data-callout-parent-color][data-callout-last] {
+  padding-bottom: 8px !important;
+}
+
+.ce-block[data-callout-parent-color][data-callout-last] > .ce-block__content {
+  border-radius: 0 0 10px 10px;
+  padding-bottom: 16px;
 }
 
 /* text / content colors inside callouts */

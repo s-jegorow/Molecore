@@ -2,7 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/molecore-logo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1a1a1a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="molecore" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="/src/style.css">
     <title>molecore</title>
@@ -156,6 +163,20 @@
                 <span>Import pages from Notion</span>
               </div>
               <button id="notion-importer-btn" class="settings-action-btn">Open</button>
+            </div>
+          </div>
+
+          <div class="settings-group" id="install-app-group" style="display: none;">
+            <p class="settings-group-label">App</p>
+            <div class="settings-import-row">
+              <div class="settings-import-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              </div>
+              <div class="settings-import-text">
+                <span>Install molecore</span>
+                <span id="install-app-hint">Use it like a regular app</span>
+              </div>
+              <button id="install-app-btn" class="settings-action-btn" style="display: none;">Install</button>
             </div>
           </div>
 

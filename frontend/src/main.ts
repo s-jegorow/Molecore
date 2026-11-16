@@ -12,6 +12,7 @@ import { initTodo } from './todo'
 import { initCalendar } from './calendar'
 import { Modal } from './Modal'
 import { login } from './auth'
+import { initInstallApp } from './pwa'
 
 function updateUndoRedoButtons(): void {
   const undoBtn = document.getElementById('undo-btn')
@@ -75,6 +76,8 @@ function setupSessionExpiredHandler(): void {
 }
 
 async function init(): Promise<void> {
+  initInstallApp()
+
   const authenticated = await initKeycloak()
   updateAuthUI(authenticated)
   initAuthUI()
