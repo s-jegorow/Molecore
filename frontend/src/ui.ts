@@ -198,6 +198,11 @@ export function initDarkMode() {
     }
   }
 
+  function updateThemeColor() {
+    const meta = document.querySelector('meta[name="theme-color"]')
+    meta?.setAttribute('content', isDarkMode ? '#1a1a1a' : '#fafafa')
+  }
+
   function updateDarkmodeIcon() {
     const moonIcon = isDarkMode ? '🌙' : '☾'
     if (mobileDarkmodeBtn) mobileDarkmodeBtn.textContent = moonIcon
@@ -216,6 +221,7 @@ export function initDarkMode() {
     }
 
     updateLogo()
+    updateThemeColor()
     updateDarkmodeIcon()
   }
 
@@ -224,6 +230,7 @@ export function initDarkMode() {
     mobileDarkmodeBtn?.classList.add('active')
   }
   updateLogo()
+  updateThemeColor()
   updateDarkmodeIcon()
 
   mobileDarkmodeBtn?.addEventListener('click', toggleDarkMode)
@@ -279,13 +286,13 @@ function renderSidebar(): void {
     }
 
     allPages
-      .filter(page => page.page_type === 'favorite')
+      .filter(page => page.is_favorite)
       .forEach(page => mobileFavoritesList.appendChild(createPageNode(page, 0, childrenMap)))
   }
 
   mobilePagesList.innerHTML = ''
   roots
-    .filter(page => page.page_type !== 'favorite')
+    .filter(page => !page.is_favorite)
     .forEach(page => mobilePagesList.appendChild(createPageNode(page, 0, childrenMap)))
 }
 
@@ -436,7 +443,7 @@ function createPageItem(
   return pageItem
 }
 
-function getPagePath(pageId: number): string {
+export function getPagePath(pageId: number): string {
   const pageMap = new Map(allPages.map(p => [p.id, p]))
   const path: string[] = []
   const seen = new Set<number>()

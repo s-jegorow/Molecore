@@ -124,6 +124,12 @@ function _headerFkOf(el: Element | null | undefined): string | null {
   return el?.querySelector('.callout-block-header')?.getAttribute('data-callout-fk') || null
 }
 
+export function getCalloutMembers(blockEl: Element): Element[] {
+  const fk = _headerFkOf(blockEl)
+  if (!fk) return []
+  return Array.from(document.querySelectorAll('.ce-block')).filter(b => _isInCallout(b, fk))
+}
+
 function _getHeaderIdx(fk: string): number {
   const blocks = Array.from(document.querySelectorAll('.ce-block'))
   return blocks.findIndex(b => _headerFkOf(b) === fk)

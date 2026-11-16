@@ -106,6 +106,14 @@ export async function deletePage(id: number, cascade = false): Promise<void> {
   if (!response.ok) throw new Error(await errorDetail(response, 'Failed to delete page'))
 }
 
+export async function downloadExport(): Promise<Blob> {
+  const response = await fetch(`${API_URL}/api/export`, {
+    headers: await getAuthHeaders()
+  })
+  if (!response.ok) throw new Error(await errorDetail(response, 'Export failed'))
+  return response.blob()
+}
+
 export async function getNotepad(): Promise<Page> {
   const response = await fetch(`${base()}/notepad`, {
     headers: await getAuthHeaders()

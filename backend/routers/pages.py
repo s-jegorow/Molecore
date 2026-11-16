@@ -5,6 +5,7 @@ import time
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -14,8 +15,8 @@ from schemas import PageCreate, PageMeta, PageResponse, PageUpdate, SearchResult
 
 router = APIRouter()
 
-VALID_PAGE_TYPES = {"home", "favorite", "normal", "template", "notepad", "todo"}
-ASSIGNABLE_PAGE_TYPES = VALID_PAGE_TYPES - {"home"}
+SINGLE_PAGE_TYPES = {"home", "notepad", "todo"}
+ASSIGNABLE_PAGE_TYPES = {"normal", "template"}
 
 
 def load_content(raw) -> dict:
@@ -37,6 +38,7 @@ def page_to_dict(page: Page, include_content: bool = True) -> dict:
         "title": page.title,
         "parent_id": page.parent_id,
         "page_type": page.page_type,
+        "is_favorite": bool(page.is_favorite),
         "icon": page.icon,
         "header": page.header,
         "order": page.order,
@@ -150,31 +152,15 @@ def get_pages(
     ).order_by(Page.order, Page.id).all()
 
     if not pages:
-        home_page = Page(
-            title="Dashboard",
-            content=json.dumps({
-                "time": int(time.time() * 1000),
-                "blocks": [
-                    {
-                        "type": "paragraph",
-                        "data": {
-                            "text": "This is your home page. You can customize it however you like."
-                        }
-                    }
-                ],
-                "version": "2.28.2"
-            }),
-            parent_id=None,
-            page_type="home",
-            icon=None,
-            header=None,
-            order=0,
-            user_id=user_id
-        )
-        db.add(home_page)
-        db.commit()
-        db.refresh(home_page)
-        pages = [home_page]
+        home_blocks = [
+            {
+                "type": "paragraph",
+                "data": {
+                    "text": "This is your home page. You can customize it however you like."
+                }
+            }
+        ]
+        pages = [_get_or_create_single_page(db, user_id, "home", "Dashboard", None, order=0, blocks=home_blocks)]
 
     return [page_to_dict(p, include_content=False) for p in pages]
 
@@ -229,6 +215,7 @@ def create_page(
         content=json.dumps(page_data.content),
         parent_id=page_data.parent_id,
         page_type=page_data.page_type or "normal",
+        is_favorite=bool(page_data.is_favorite),
         icon=page_data.icon,
         header=page_data.header,
         order=page_data.order or 0,
@@ -255,8 +242,11 @@ def update_page(
         raise HTTPException(status_code=404, detail="Page not found")
 
     if page_data.page_type is not None and page_data.page_type != page.page_type:
-        if page.page_type == "home" or page_data.page_type not in ASSIGNABLE_PAGE_TYPES:
+        if page.page_type in SINGLE_PAGE_TYPES or page_data.page_type not in ASSIGNABLE_PAGE_TYPES:
             raise HTTPException(status_code=400, detail="Invalid page_type change")
+
+    if page_data.is_favorite and page.page_type in SINGLE_PAGE_TYPES:
+        raise HTTPException(status_code=400, detail="This page can't be a favorite")
 
     if page_data.parent_id is not None:
         if not find_user_page(db, page_data.parent_id, user_id):
@@ -272,6 +262,8 @@ def update_page(
         page.parent_id = page_data.parent_id
     if page_data.page_type is not None:
         page.page_type = page_data.page_type
+    if page_data.is_favorite is not None:
+        page.is_favorite = page_data.is_favorite
     if page_data.icon is not None:
         page.icon = page_data.icon
     if page_data.header is not None:
@@ -328,29 +320,46 @@ def delete_page(
     return {"message": "Page deleted successfully"}
 
 
-def _get_or_create_special_page(db: Session, user_id: str, page_type: str, title: str, icon: str) -> Page:
-    page = db.query(Page).filter(
+def _find_single_page(db: Session, user_id: str, page_type: str) -> Optional[Page]:
+    return db.query(Page).filter(
         Page.user_id == user_id,
         Page.page_type == page_type
     ).first()
 
-    if not page:
-        page = Page(
-            title=title,
-            content=json.dumps({
-                "time": int(time.time() * 1000),
-                "blocks": [],
-                "version": "2.28.2"
-            }),
-            parent_id=None,
-            page_type=page_type,
-            icon=icon,
-            order=-1,
-            user_id=user_id
-        )
-        db.add(page)
+
+def _get_or_create_single_page(
+    db: Session,
+    user_id: str,
+    page_type: str,
+    title: str,
+    icon: Optional[str],
+    order: int = -1,
+    blocks: Optional[list] = None,
+) -> Page:
+    page = _find_single_page(db, user_id, page_type)
+    if page:
+        return page
+
+    page = Page(
+        title=title,
+        content=json.dumps({
+            "time": int(time.time() * 1000),
+            "blocks": blocks or [],
+            "version": "2.28.2"
+        }),
+        parent_id=None,
+        page_type=page_type,
+        icon=icon,
+        order=order,
+        user_id=user_id
+    )
+    db.add(page)
+    try:
         db.commit()
-        db.refresh(page)
+    except IntegrityError:
+        db.rollback()
+        return _find_single_page(db, user_id, page_type)
+    db.refresh(page)
     return page
 
 
@@ -359,7 +368,7 @@ def get_notepad(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    page = _get_or_create_special_page(db, current_user.get("user_id"), "notepad", "Notepad", "📝")
+    page = _get_or_create_single_page(db, current_user.get("user_id"), "notepad", "Notepad", "📝")
     return page_to_dict(page)
 
 
@@ -368,5 +377,5 @@ def get_todo(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    page = _get_or_create_special_page(db, current_user.get("user_id"), "todo", "Todos", "☑️")
+    page = _get_or_create_single_page(db, current_user.get("user_id"), "todo", "Todos", "☑️")
     return page_to_dict(page)

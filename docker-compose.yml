@@ -11,6 +11,11 @@ services:
     networks:
       - backend-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U molecore -d molecore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   backend:
     build: ./backend
@@ -24,7 +29,8 @@ services:
     volumes:
       - backend_uploads:/app/uploads
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - backend-network
     restart: unless-stopped

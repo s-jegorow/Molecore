@@ -9,6 +9,7 @@ import ParagraphWithBlanks from './ParagraphWithBlanks'
 import ResizableImage from './ResizableImage'
 import BackgroundColorTune from './BackgroundColorTune'
 import WrapCalloutTune from './WrapCalloutTune'
+import DeleteTune from './DeleteTune'
 import ColorTool from './ColorTool'
 import HighlightTool from './HighlightTool'
 import UnderlineTool from './UnderlineTool'
@@ -105,6 +106,7 @@ export function initEditor(
       backgroundColor: BackgroundColorTune as any,
       wrapCallout: WrapCalloutTune as any,
       alignment: AlignmentTune as any,
+      delete: { class: DeleteTune as any },
     },
 
     placeholder: 'Type / for commands...',

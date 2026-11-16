@@ -8,6 +8,7 @@ class PageCreate(BaseModel):
     content: dict
     parent_id: Optional[int] = None
     page_type: Optional[str] = "normal"
+    is_favorite: Optional[bool] = False
     icon: Optional[str] = Field(None, max_length=200)
     header: Optional[str] = Field(None, max_length=500)
     order: Optional[int] = 0
@@ -18,6 +19,7 @@ class PageUpdate(BaseModel):
     content: Optional[dict] = None
     parent_id: Optional[int] = None
     page_type: Optional[str] = None
+    is_favorite: Optional[bool] = None
     icon: Optional[str] = Field(None, max_length=200)
     header: Optional[str] = Field(None, max_length=500)
     order: Optional[int] = None
@@ -30,6 +32,7 @@ class PageMeta(BaseModel):
     title: str
     parent_id: Optional[int]
     page_type: str
+    is_favorite: bool
     icon: Optional[str]
     header: Optional[str]
     order: int

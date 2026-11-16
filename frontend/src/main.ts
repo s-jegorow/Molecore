@@ -13,6 +13,7 @@ import { initCalendar } from './calendar'
 import { Modal } from './Modal'
 import { login } from './auth'
 import { initInstallApp } from './pwa'
+import { initQuickSwitcher } from './quickSwitcher'
 
 function updateUndoRedoButtons(): void {
   const undoBtn = document.getElementById('undo-btn')
@@ -105,6 +106,7 @@ async function startApp(): Promise<void> {
   initEditor(scheduleAutoSave, updateUndoRedoButtons)
 
   initPageList(loadPage)
+  initQuickSwitcher(loadPage)
 
   initProfileModal()
 

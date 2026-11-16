@@ -58,6 +58,7 @@ def _fake_page(
         "content": content or {"blocks": []},
         "parent_id": parent_id,
         "page_type": page_type or "normal",
+        "is_favorite": False,
         "icon": icon,
         "header": None,
         "order": order or 0,

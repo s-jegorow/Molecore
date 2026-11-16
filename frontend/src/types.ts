@@ -3,6 +3,7 @@ export interface PageMeta {
   title: string
   parent_id: number | null
   page_type: string
+  is_favorite: boolean
   icon: string | null
   header: string | null
   order: number
@@ -29,6 +30,7 @@ export interface PageCreate {
   content: EditorJSContent
   parent_id?: number | null
   page_type?: string
+  is_favorite?: boolean
   icon?: string | null
   header?: string | null
   order?: number
@@ -39,6 +41,7 @@ export interface PageUpdate {
   content?: EditorJSContent
   parent_id?: number | null
   page_type?: string
+  is_favorite?: boolean
   icon?: string | null
   header?: string | null
   order?: number

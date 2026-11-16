@@ -1,5 +1,5 @@
 import { getToken } from './auth'
-import { API_URL, getPreferences, updatePreferences, invalidatePagesCache } from './api'
+import { API_URL, getPreferences, updatePreferences, invalidatePagesCache, downloadExport } from './api'
 import { Modal } from './Modal'
 import { showNotepadTab, hideNotepadTab } from './notepad'
 import { showToolboxTab, hideToolboxTab } from './toolbox'
@@ -26,6 +26,9 @@ export function initProfileModal(): void {
   })
 
   cleanupUploadsBtn?.addEventListener('click', handleCleanupUploads)
+
+  const exportBtn = document.getElementById('export-btn') as HTMLButtonElement | null
+  exportBtn?.addEventListener('click', () => handleExport(exportBtn))
 
   const notionBtn = document.getElementById('notion-importer-btn')
   initNotionImporter()
@@ -92,6 +95,26 @@ export function initProfileModal(): void {
       await updatePreferences({ grain_enabled: grainToggle.checked })
       applyGrain(grainToggle.checked)
     })
+  }
+}
+
+async function handleExport(button: HTMLButtonElement): Promise<void> {
+  button.disabled = true
+  button.textContent = 'Exporting...'
+  try {
+    const blob = await downloadExport()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `molecore-export-${new Date().toISOString().slice(0, 10)}.zip`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error: any) {
+    console.error('Export failed:', error)
+    await Modal.error(error?.message || 'Export failed.')
+  } finally {
+    button.disabled = false
+    button.textContent = 'Download'
   }
 }
 

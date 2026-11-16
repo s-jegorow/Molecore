@@ -132,7 +132,7 @@ export async function loadPage(pageId: number) {
 
     await buildBreadcrumbs(pageId)
 
-    updateFavoriteButton(page.page_type === 'favorite')
+    updateFavoriteButton(page.is_favorite)
 
     updateHeaderImage(page.header)
 
@@ -164,7 +164,7 @@ export async function navigateToHomePage(): Promise<void> {
       }
     }
 
-    const firstFavorite = allPages.find(p => p.page_type === 'favorite' && !p.parent_id)
+    const firstFavorite = allPages.find(p => p.is_favorite && !p.parent_id)
     const firstPage = allPages.find(p => p.page_type !== 'home' && !p.parent_id)
     const target = firstFavorite || firstPage || allPages.find(p => p.page_type === 'home')
     if (target) await loadPage(target.id)
@@ -320,10 +320,10 @@ export function setupFavoriteButton(): void {
       const page = await getPage(appState.currentPageId)
       if (page.page_type === 'home') return
 
-      const newPageType = page.page_type === 'favorite' ? 'normal' : 'favorite'
+      const isFavorite = !page.is_favorite
 
-      await updatePage(appState.currentPageId, { page_type: newPageType })
-      updateFavoriteButton(newPageType === 'favorite')
+      await updatePage(appState.currentPageId, { is_favorite: isFavorite })
+      updateFavoriteButton(isFavorite)
       await refreshSidebar()
     } catch (error) {
       console.error('Failed to toggle favorite:', error)

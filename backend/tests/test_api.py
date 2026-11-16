@@ -1,14 +1,19 @@
+import io
 import os
 import time
+import zipfile
 
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.exc import IntegrityError
 
 import auth
 from conftest import GIF, PNG, make_zip
+from database import SessionLocal
+from models import Page
 
 
 def _create(client, title="Page", **kw):
@@ -43,7 +48,7 @@ def test_create_keeps_header_and_rejects_home(client):
 
 def test_home_page_type_cannot_change(client):
     home = client.get("/api/pages").json()[0]
-    r = client.put(f"/api/pages/{home['id']}", json={"page_type": "favorite"})
+    r = client.put(f"/api/pages/{home['id']}", json={"page_type": "normal"})
     assert r.status_code == 400
     r = client.put(f"/api/pages/{home['id']}", json={"page_type": "home", "title": "Dash"})
     assert r.status_code == 200
@@ -183,6 +188,101 @@ def test_notepad_and_todo(client):
     assert n1["id"] == n2["id"] and n1["page_type"] == "notepad"
     assert client.get("/api/todo").json()["page_type"] == "todo"
     assert all(p["page_type"] not in ("notepad", "todo") for p in client.get("/api/pages").json())
+
+
+def test_favorite_flag(client):
+    home = client.get("/api/pages").json()[0]
+    p = _create(client, "Fav", is_favorite=True)
+    assert p["is_favorite"] is True and p["page_type"] == "normal"
+    assert _create(client, "Plain")["is_favorite"] is False
+
+    r = client.put(f"/api/pages/{p['id']}", json={"is_favorite": False})
+    assert r.json()["is_favorite"] is False
+    r = client.put(f"/api/pages/{p['id']}", json={"title": "Still not fav"})
+    assert r.json()["is_favorite"] is False
+    assert client.put(f"/api/pages/{home['id']}", json={"is_favorite": True}).status_code == 400
+
+    r = client.post("/api/pages", json={"title": "x", "content": {"blocks": []}, "page_type": "favorite"})
+    assert r.status_code == 400
+
+
+def test_single_pages_stay_single(client):
+    client.get("/api/pages")
+    notepad = client.get("/api/notepad").json()
+    page = _create(client, "Normal")
+    assert client.put(f"/api/pages/{page['id']}", json={"page_type": "notepad"}).status_code == 400
+    assert client.put(f"/api/pages/{notepad['id']}", json={"page_type": "normal"}).status_code == 400
+    assert client.post("/api/pages", json={"title": "x", "content": {"blocks": []}, "page_type": "todo"}).status_code == 400
+
+    db = SessionLocal()
+    try:
+        db.add(Page(title="Second", content="{}", page_type="home", user_id="user-a"))
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+        db.add(Page(title="Other user", content="{}", page_type="home", user_id="user-b"))
+        db.add(Page(title="Many normals", content="{}", page_type="normal", user_id="user-a"))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _export(client) -> zipfile.ZipFile:
+    r = client.get("/api/export")
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/zip"
+    assert "molecore-export-" in r.headers["content-disposition"]
+    return zipfile.ZipFile(io.BytesIO(r.content))
+
+
+def test_export_markdown_zip(client, as_user):
+    url = client.post("/api/upload", files={"file": ("pic.png", PNG, "image/png")}).json()["url"]
+    filename = url.split("/")[-1]
+
+    parent = _create(client, "Projects/2026", icon="📁")
+    child = _create(client, "Plan", parent_id=parent["id"], content={"blocks": [
+        {"type": "header", "data": {"text": "Goals", "level": 2}},
+        {"type": "paragraph", "data": {"text": "a <b>bold</b> <a href=\"https://example.com\">link</a> &amp; more"}},
+        {"type": "list", "data": {"style": "checklist", "items": [
+            {"content": "done", "meta": {"checked": True}, "items": []},
+            {"content": "open", "meta": {"checked": False}, "items": [{"content": "sub", "meta": {}, "items": []}]},
+        ]}},
+        {"type": "callout", "data": {"fk": "c1", "items": 2, "color": "blue"}},
+        {"type": "paragraph", "data": {"text": "inside"}},
+        {"type": "image", "data": {"url": url, "width": 100}},
+        {"type": "paragraph", "data": {"text": "outside"}},
+        {"type": "table", "data": {"withHeadings": True, "content": [["A", "B"], ["1", "x|y"]]}},
+        {"type": "page", "data": {"pageId": parent["id"], "pageTitle": "Projects"}},
+    ]})
+    _create(client, "Plan", parent_id=parent["id"])
+    client.get("/api/notepad")
+
+    as_user("user-b")
+    _create(client, "Secret")
+    as_user("user-a")
+
+    zf = _export(client)
+    names = set(zf.namelist())
+    assert "Projects-2026.md" in names
+    assert "Projects-2026/Plan.md" in names and "Projects-2026/Plan (2).md" in names
+    assert "Notepad.md" in names
+    assert f"files/{filename}" in names
+    assert not any("Secret" in n for n in names)
+
+    assert zf.read("Projects-2026.md").decode() == "# 📁 Projects/2026\n"
+    assert zf.read("Notepad.md").decode().startswith("# 📝 Notepad\n")
+    md = zf.read("Projects-2026/Plan.md").decode()
+    assert md.startswith("# Plan\n\n## Goals\n\na **bold**")
+    assert "a **bold** [link](https://example.com) & more" in md
+    assert "- [x] done\n- [ ] open\n    - [ ] sub" in md
+    assert f"> inside\n>\n> ![](../files/{filename})\n\noutside" in md
+    assert "| A | B |\n| --- | --- |\n| 1 | x\\|y |" in md
+    assert "[Projects](../Projects-2026.md)" in md
+
+
+def test_export_empty_user(client):
+    zf = _export(client)
+    assert zf.namelist() == []
 
 
 def test_demo_endpoints(client):

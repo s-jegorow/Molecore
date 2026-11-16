@@ -166,6 +166,20 @@
             </div>
           </div>
 
+          <div class="settings-group">
+            <p class="settings-group-label">Export</p>
+            <div class="settings-import-row">
+              <div class="settings-import-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div class="settings-import-text">
+                <span>Markdown export</span>
+                <span>All pages and files as a ZIP</span>
+              </div>
+              <button id="export-btn" class="settings-action-btn">Download</button>
+            </div>
+          </div>
+
           <div class="settings-group" id="install-app-group" style="display: none;">
             <p class="settings-group-label">App</p>
             <div class="settings-import-row">
@@ -498,6 +512,13 @@
       draw();
     })();
   </script>
+
+  <div id="quick-switcher" class="quick-switcher">
+    <div class="quick-switcher-box">
+      <input type="text" id="quick-switcher-input" placeholder="Jump to a page..." autocomplete="off">
+      <div id="quick-switcher-results"></div>
+    </div>
+  </div>
 
   <!-- notion importer modal -->
   <div id="notion-importer-modal" class="ni-overlay" aria-hidden="true">
