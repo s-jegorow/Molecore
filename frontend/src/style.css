@@ -185,7 +185,7 @@ body {
 .page-item {
   display: flex;
   align-items: center;
-  padding: var(--spacing-lg);
+  padding: 6px var(--spacing-md);
   cursor: pointer;
   border-radius: var(--radius-lg);
   font-size: var(--font-size-md);
@@ -372,8 +372,7 @@ body {
 }
 
 header {
-  padding: var(--spacing-3xl) var(--spacing-3xl) var(--spacing-3xl) var(--spacing-6xl);
-  padding-top: var(--spacing-6xl);
+  padding: var(--spacing-lg) var(--spacing-3xl) var(--spacing-lg) var(--spacing-6xl);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -382,7 +381,15 @@ header {
   background-repeat: no-repeat;
   transition: background-image 0.3s ease;
   position: relative;
-  min-height: 220px;
+  min-height: 90px;
+}
+
+body.header-s header {
+  min-height: 60px;
+}
+
+body.header-l header {
+  min-height: 120px;
 }
 
 
@@ -3141,7 +3148,7 @@ body.dark-mode .toggle-block__icon > svg {
 
 /* bottom bar & slide-in panel */
 #content {
-  margin-bottom: 60px;
+  margin-bottom: 50px;
 }
 
 #mobile-bottom-menu {
@@ -3150,7 +3157,7 @@ body.dark-mode .toggle-block__icon > svg {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 50px;
   background: #000;
   align-items: center;
   justify-content: space-around;
@@ -3189,23 +3196,23 @@ body.dark-mode .toggle-block__icon > svg {
   cursor: pointer;
   padding: 0;
   width: 80px;
-  height: 80px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform 0.2s;
   flex: 1;
   position: relative;
-  bottom: 15px;
+  bottom: 10px;
   box-shadow: var(--shadow-mobile);
 }
 
 .mobile-menu-logo:active {
-  transform: scale(0.95) translateY(15px);
+  transform: scale(0.95) translateY(10px);
 }
 
 .mobile-menu-logo img {
-  height: 62px;
+  height: 48px;
   width: auto;
 }
 
@@ -3236,8 +3243,7 @@ body.dark-mode .toggle-block__icon > svg {
   right: 0;
   background: var(--color-bg-secondary);
   border-radius: var(--spacing-xl) var(--spacing-xl) 0 0;
-  max-height: 85vh;
-  min-height: fit-content;
+  max-height: 85dvh;
   transform: translateY(100%);
   transition: transform 0.3s ease;
   display: flex;
@@ -3327,7 +3333,7 @@ body.dark-mode .toggle-block__icon > svg {
 
 #mobile-favorites-section,
 #mobile-pages-section {
-  margin-bottom: var(--spacing-3xl);
+  margin-bottom: var(--spacing-xl);
 }
 
 #mobile-favorites-section {
@@ -3348,10 +3354,8 @@ body.demo-mode .mobile-new-page-btn {
 
 .demo-back-btn {
   display: none;
-  order: 4;
-  margin-top: var(--spacing-2xl);
-  margin-bottom: 80px;
-  width: 100%;
+  flex-shrink: 0;
+  margin: var(--spacing-md) var(--spacing-2xl) 65px;
   padding: var(--spacing-lg);
   background: var(--color-accent-ios);
   color: white;
@@ -3367,10 +3371,8 @@ body.demo-mode .mobile-new-page-btn {
 }
 
 .mobile-new-page-btn {
-  order: 3;
-  margin-top: var(--spacing-2xl);
-  margin-bottom: 100px;
-  width: 100%;
+  flex-shrink: 0;
+  margin: var(--spacing-md) var(--spacing-2xl) 85px;
   padding: var(--spacing-lg);
   background: var(--color-accent-ios);
   color: white;
@@ -3389,7 +3391,7 @@ body.demo-mode .mobile-new-page-btn {
 #mobile-pages-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
 }
 
 body.dark-mode #mobile-darkmode-btn {
@@ -3617,13 +3619,15 @@ body.dark-mode.grain-enabled .app-grain {
 /* mobile layout */
 @media (max-width: 768px) {
   header {
-    padding: var(--spacing-3xl) var(--spacing-3xl) var(--spacing-3xl) var(--spacing-3xl);
-    padding-top: var(--spacing-3xl);
-    min-height: 120px;
+    padding: var(--spacing-lg) var(--spacing-3xl);
+  }
+
+  #page-title {
+    font-size: 28px;
   }
 
   main {
-    padding: var(--spacing-3xl) var(--spacing-3xl) calc(60px + var(--spacing-3xl)) var(--spacing-3xl);
+    padding: var(--spacing-3xl) var(--spacing-3xl) calc(50px + var(--spacing-3xl)) var(--spacing-3xl);
   }
 
   #redo-btn,

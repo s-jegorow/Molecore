@@ -96,6 +96,23 @@ export function initProfileModal(): void {
       applyGrain(grainToggle.checked)
     })
   }
+
+  getPreferences().then(prefs => applyHeaderSize(prefs.header_size ?? 'm'))
+  document.querySelectorAll<HTMLElement>('[data-header-size]').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const size = chip.dataset.headerSize!
+      applyHeaderSize(size)
+      await updatePreferences({ header_size: size })
+    })
+  })
+}
+
+function applyHeaderSize(size: string): void {
+  document.body.classList.remove('header-s', 'header-l')
+  if (size !== 'm') document.body.classList.add(`header-${size}`)
+  document.querySelectorAll<HTMLElement>('[data-header-size]').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.headerSize === size)
+  })
 }
 
 async function handleExport(button: HTMLButtonElement): Promise<void> {
