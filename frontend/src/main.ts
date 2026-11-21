@@ -2,16 +2,16 @@ import './style.css'
 import { appState } from './state'
 import { initEditor, performUndo, performRedo, canUndo, canRedo } from './editor'
 import { loadPage, navigateToHomePage, scheduleAutoSave, setupPageEventListeners } from './pages'
+import { clipUrl } from './api'
 import { initProfileModal } from './profile'
-import { initKeycloak, updateAuthUI, initAuthUI } from './auth'
-import { initPageList, initDarkMode, initReadMode } from './ui'
+import { initKeycloak, updateAuthUI, initAuthUI, login } from './auth'
+import { initPageList, initDarkMode, initReadMode, refreshSidebar } from './ui'
 import { initNotepad } from './notepad'
 import { initToolbox } from './toolbox'
 import { initTimer } from './timer'
 import { initTodo } from './todo'
 import { initCalendar } from './calendar'
 import { Modal } from './Modal'
-import { login } from './auth'
 import { initInstallApp, registerServiceWorker } from './pwa'
 import { initQuickSwitcher } from './quickSwitcher'
 
@@ -139,6 +139,32 @@ async function startApp(): Promise<void> {
   initCalendar()
   if (!appState.isDemo) {
     await navigateToHomePage()
+  }
+  if (!appState.isDemo && !appState.isOffline) {
+    await handleClipLink()
+  }
+}
+
+async function handleClipLink(): Promise<void> {
+  const params = new URLSearchParams(window.location.search)
+  const url = params.get('clip') || params.get('text')?.match(/https?:\/\/\S+/)?.[0]
+  if (!url) return
+
+  window.history.replaceState(null, '', window.location.pathname)
+
+  const toast = document.createElement('div')
+  toast.className = 'clip-toast'
+  toast.textContent = 'Clipping article...'
+  document.body.appendChild(toast)
+
+  try {
+    const page = await clipUrl(url, null)
+    await refreshSidebar()
+    await loadPage(page.id)
+  } catch (error: any) {
+    await Modal.error(error?.message || 'Clipping failed.')
+  } finally {
+    toast.remove()
   }
 }
 

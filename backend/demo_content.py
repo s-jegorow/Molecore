@@ -86,7 +86,10 @@ _DEMO_CONTENT_HISTORY = {
     "time": 1712188800000,
     "blocks": [
         {"type": "header", "data": {"text": "Version History", "level": 1}},
-        {"type": "callout", "data": {"fk": "callout-hist-v13", "items": 2, "color": "green"}},
+        {"type": "callout", "data": {"fk": "callout-hist-v14", "items": 2, "color": "green"}},
+        {"type": "header", "data": {"text": "v1.4 - November 21, 2026", "level": 3}},
+        {"type": "paragraph", "data": {"text": "Web clip: save any article as a page from the block menu, the bookmarklet or the share menu. Move pages via right-click or long-press. Offline reading in the installed app. Page width setting, copy button for code blocks, wrapping page titles, leading spaces kept in text."}},
+        {"type": "callout", "data": {"fk": "callout-hist-v13", "items": 2, "color": "blue"}},
         {"type": "header", "data": {"text": "v1.3 - November 20, 2026", "level": 3}},
         {"type": "paragraph", "data": {"text": "Header height can be set to small, medium or large in the settings. The navigation panel scrolls when there are many pages, with tighter spacing between entries. The \"New Page\" button stays at the bottom of the panel. Slimmer bottom bar and smaller page titles on mobile."}},
         {"type": "callout", "data": {"fk": "callout-hist-v12", "items": 2, "color": "blue"}},

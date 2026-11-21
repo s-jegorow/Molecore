@@ -18,6 +18,7 @@ import LinkTool from './LinkTool'
 import TooltipTool from './TooltipTool'
 import DragDrop from 'editorjs-drag-drop'
 import PageBlock from './PageBlock'
+import ClipBlock from './ClipBlock'
 import AudioBlock from './AudioBlock'
 import FileBlock from './FileBlock'
 import EmbedBlock from './EmbedBlock'
@@ -103,6 +104,7 @@ export function initEditor(
       strikethrough: StrikethroughTool as any,
       tooltip: TooltipTool as any,
       page: PageBlock as any,
+      clip: ClipBlock as any,
       backgroundColor: BackgroundColorTune as any,
       wrapCallout: WrapCalloutTune as any,
       alignment: AlignmentTune as any,

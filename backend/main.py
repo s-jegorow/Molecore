@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import SessionLocal
-from routers import calendar, demo, export, files, notion_import, pages, preferences
+from routers import calendar, clip, demo, export, files, notion_import, pages, preferences
 from uploads import UPLOAD_DIR, UploadStaticFiles
 
 logging.basicConfig(level=logging.INFO)
@@ -49,3 +49,4 @@ app.include_router(calendar.router)
 app.include_router(notion_import.router)
 app.include_router(demo.router)
 app.include_router(export.router)
+app.include_router(clip.router)

@@ -75,5 +75,10 @@ class CalendarEventResponse(BaseModel):
     color: Optional[str]
 
 
+class ClipRequest(BaseModel):
+    url: str = Field(..., max_length=2000)
+    parent_id: Optional[int] = None
+
+
 class PreferencesUpdate(BaseModel):
     model_config = {"extra": "allow"}

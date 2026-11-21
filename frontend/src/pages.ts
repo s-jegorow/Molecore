@@ -3,6 +3,7 @@ import { setActivePage, refreshSidebar } from './ui'
 import { appState } from './state'
 import { Modal } from './Modal'
 import { initCalloutObserver } from './CalloutBlock'
+import { getHeaderPosition, initHeaderPosition, setHeaderPosition, stopRepositioning } from './headerPosition'
 
 async function buildBreadcrumbs(pageId: number) {
   const breadcrumbsContainer = document.getElementById('breadcrumbs')
@@ -76,10 +77,13 @@ function updateHeaderImage(headerPath: string | null | undefined) {
   const header = document.querySelector('header')
   if (!header) return
 
+  header.dataset.image = headerPath || ''
+  header.classList.toggle('has-image', !!headerPath)
   if (headerPath) {
-    (header as HTMLElement).style.backgroundImage = `url('${headerPath}')`
+    header.style.backgroundImage = `url('${headerPath}')`
   } else {
-    (header as HTMLElement).style.backgroundImage = ''
+    header.style.backgroundImage = ''
+    stopRepositioning()
   }
 }
 
@@ -119,6 +123,9 @@ export async function loadPage(pageId: number) {
       resizeTitle(pageTitleInput)
       setTitleColor(pageTitleInput, parseTitleColor((page.content as any)?.title_color))
     }
+
+    stopRepositioning()
+    setHeaderPosition((page.content as any)?.header_position)
 
     appState.currentPageId = pageId
     lastSavedSnapshot = await currentSnapshot()
@@ -204,7 +211,8 @@ async function currentSnapshot(): Promise<string> {
   return JSON.stringify({
     blocks: content.blocks,
     title: titleInput?.value || 'Untitled',
-    color: titleInput?.dataset.titleColor || ''
+    color: titleInput?.dataset.titleColor || '',
+    position: getHeaderPosition()
   })
 }
 
@@ -217,8 +225,10 @@ async function saveNow(pageId: number, keepalive: boolean): Promise<void> {
     const title = pageTitleInput?.value || 'Untitled'
     const titleColor = pageTitleInput?.dataset.titleColor || ''
     if (titleColor) (content as any).title_color = titleColor
+    const headerPosition = getHeaderPosition()
+    if (headerPosition) (content as any).header_position = headerPosition
 
-    const snapshot = JSON.stringify({ blocks: content.blocks, title, color: titleColor })
+    const snapshot = JSON.stringify({ blocks: content.blocks, title, color: titleColor, position: headerPosition })
     if (snapshot !== lastSavedSnapshot) {
       await updatePage(pageId, { content, title }, { keepalive })
       lastSavedSnapshot = snapshot
@@ -267,7 +277,7 @@ export async function scheduleAutoSave(): Promise<void> {
 export function setupHeaderUpload(): void {
   const headerElement = document.querySelector('header')
   headerElement?.addEventListener('dblclick', async (e) => {
-    if ((e.target as HTMLElement).id === 'page-title') return
+    if ((e.target as HTMLElement).closest('#page-title, button')) return
     if (!appState.currentPageId) return
     if (appState.isDemo) return
 
@@ -283,7 +293,11 @@ export function setupHeaderUpload(): void {
       try {
         const headerPath = await uploadFile(file, 'header')
         await updatePage(pageId, { header: headerPath })
-        if (appState.currentPageId === pageId) updateHeaderImage(headerPath)
+        if (appState.currentPageId === pageId) {
+          updateHeaderImage(headerPath)
+          setHeaderPosition('')
+          scheduleAutoSave()
+        }
       } catch (error: any) {
         console.error('Failed to upload header:', error)
         await Modal.error(error?.message || 'Failed to upload header image.')
@@ -414,6 +428,7 @@ export function setupPageEventListeners(): void {
   setupPageBlockAutoSave()
   setupPageBlockNavigation()
   setupTitleColorPicker()
+  initHeaderPosition(scheduleAutoSave)
   setupDragScroll()
   setupUnloadSave()
 }

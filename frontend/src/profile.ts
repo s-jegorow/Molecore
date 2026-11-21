@@ -97,6 +97,12 @@ export function initProfileModal(): void {
     })
   }
 
+  const bookmarklet = document.getElementById('clip-bookmarklet') as HTMLAnchorElement | null
+  if (bookmarklet) {
+    bookmarklet.href = `javascript:location.href='${window.location.origin}/?clip='+encodeURIComponent(location.href)`
+    bookmarklet.addEventListener('click', (e) => e.preventDefault())
+  }
+
   getPreferences().then(prefs => {
     applyHeaderSize(prefs.header_size ?? 'm')
     applyPageWidth(prefs.page_width ?? 'l')

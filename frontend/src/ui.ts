@@ -5,6 +5,7 @@ import { showIconPicker } from './iconPicker'
 import { isImageIcon } from './utils'
 import { openMovePicker } from './quickSwitcher'
 import { Modal } from './Modal'
+import { stopRepositioning } from './headerPosition'
 
 let activePageId: number | null = null
 let allPages: PageMeta[] = []
@@ -121,14 +122,17 @@ export function initPageList(onPageSelect: PageSelectCallback) {
   ]
 
   lists.forEach(list => {
-    list?.addEventListener('contextmenu', (e) => {
+    if (!list) return
+
+    list.addEventListener('contextmenu', (e) => {
       const pageItem = (e.target as HTMLElement).closest('.page-item') as HTMLElement | null
       if (!pageItem || pageItem.dataset.editable !== 'true') return
       e.preventDefault()
       openContextMenu(Number(pageItem.dataset.pageId), e.clientX, e.clientY)
     })
 
-    list?.addEventListener('touchstart', (e) => {
+    list.addEventListener('touchstart', (e) => {
+      suppressNextClick = false
       const pageItem = (e.target as HTMLElement).closest('.page-item') as HTMLElement | null
       if (!pageItem || pageItem.dataset.editable !== 'true') return
       const touch = e.touches[0]
@@ -139,11 +143,11 @@ export function initPageList(onPageSelect: PageSelectCallback) {
       }, 500)
     }, { passive: true })
 
-    list?.addEventListener('touchmove', cancelLongPress, { passive: true })
-    list?.addEventListener('touchend', cancelLongPress)
-    list?.addEventListener('touchcancel', cancelLongPress)
+    list.addEventListener('touchmove', cancelLongPress, { passive: true })
+    list.addEventListener('touchend', cancelLongPress)
+    list.addEventListener('touchcancel', cancelLongPress)
 
-    list?.addEventListener('click', (e) => {
+    list.addEventListener('click', (e) => {
       if (suppressNextClick) {
         suppressNextClick = false
         return
@@ -572,6 +576,7 @@ export function initReadMode() {
 
   async function applyReadMode() {
     document.body.classList.toggle('read-mode', isReadMode)
+    if (isReadMode) stopRepositioning()
     if (readModeBtn) {
       readModeBtn.classList.toggle('active', isReadMode)
       readModeBtn.title = isReadMode ? 'Edit Mode (⌘⇧R)' : 'Read Mode (⌘⇧R)'

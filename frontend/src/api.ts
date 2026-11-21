@@ -83,6 +83,17 @@ export async function createPage(data: PageCreate): Promise<Page> {
   return response.json()
 }
 
+export async function clipUrl(url: string, parentId: number | null): Promise<Page> {
+  invalidatePagesCache()
+  const response = await fetch(`${base()}/clip`, {
+    method: 'POST',
+    headers: await getAuthHeaders(),
+    body: JSON.stringify({ url, parent_id: parentId })
+  })
+  if (!response.ok) throw new Error(await errorDetail(response, 'Clipping failed.'))
+  return response.json()
+}
+
 export async function updatePage(id: number, data: PageUpdate, options: { keepalive?: boolean } = {}): Promise<Page> {
   invalidatePagesCache()
   const body = JSON.stringify(data)
