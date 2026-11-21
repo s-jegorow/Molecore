@@ -86,7 +86,10 @@ _DEMO_CONTENT_HISTORY = {
     "time": 1712188800000,
     "blocks": [
         {"type": "header", "data": {"text": "Version History", "level": 1}},
-        {"type": "callout", "data": {"fk": "callout-hist-v12", "items": 2, "color": "green"}},
+        {"type": "callout", "data": {"fk": "callout-hist-v13", "items": 2, "color": "green"}},
+        {"type": "header", "data": {"text": "v1.3 - November 20, 2026", "level": 3}},
+        {"type": "paragraph", "data": {"text": "Header height can be set to small, medium or large in the settings. The navigation panel scrolls when there are many pages, with tighter spacing between entries. The \"New Page\" button stays at the bottom of the panel. Slimmer bottom bar and smaller page titles on mobile."}},
+        {"type": "callout", "data": {"fk": "callout-hist-v12", "items": 2, "color": "blue"}},
         {"type": "header", "data": {"text": "v1.2 - November 16, 2026", "level": 3}},
         {"type": "paragraph", "data": {"text": "Quick switcher: Cmd/Ctrl + K jumps to any page. Markdown export of all pages and files as a ZIP in the settings. Favorites are stored as their own field. Home, notepad and todo pages can only exist once per user. The status bar color follows dark/light mode. Docker: the backend no longer runs as root, Postgres has a healthcheck."}},
         {"type": "callout", "data": {"fk": "callout-hist-v11", "items": 2, "color": "blue"}},

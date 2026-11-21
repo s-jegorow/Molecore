@@ -6,6 +6,7 @@ class AppState {
   private _editor: EditorJS | null = null
   private _undoManager: UndoManager | null = null
   isDemo: boolean = false
+  isOffline: boolean = false
   suppressIdleUntil: number = 0
 
   get currentPageId(): number | null {

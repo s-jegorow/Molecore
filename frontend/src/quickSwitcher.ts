@@ -1,6 +1,6 @@
 import { getPages, searchPages } from './api'
 import { getPagePath } from './ui'
-import type { PageSelectCallback } from './types'
+import type { PageMeta, PageSelectCallback } from './types'
 
 interface SwitcherItem {
   id: number
@@ -15,6 +15,10 @@ let items: SwitcherItem[] = []
 let selected = 0
 let searchSeq = 0
 let searchTimer: number | null = null
+
+const TOP_LEVEL_ID = 0
+let movingPageId: number | null = null
+let onMoveChosen: ((parentId: number | null) => void) | null = null
 
 function elements() {
   return {
@@ -39,6 +43,7 @@ function openSwitcher(): void {
   if (!overlay || !input) return
   overlay.classList.add('active')
   input.value = ''
+  input.placeholder = movingPageId === null ? 'Jump to a page...' : 'Move to...'
   input.focus()
   updateResults('')
 }
@@ -46,7 +51,43 @@ function openSwitcher(): void {
 function closeSwitcher(): void {
   if (searchTimer !== null) clearTimeout(searchTimer)
   searchSeq++
+  movingPageId = null
+  onMoveChosen = null
   elements().overlay?.classList.remove('active')
+}
+
+export function openMovePicker(pageId: number, onChosen: (parentId: number | null) => void): void {
+  movingPageId = pageId
+  onMoveChosen = onChosen
+  openSwitcher()
+}
+
+function pageAndDescendants(pages: PageMeta[], rootId: number): Set<number> {
+  const ids = new Set([rootId])
+  let added = true
+  while (added) {
+    added = false
+    for (const page of pages) {
+      if (page.parent_id !== null && ids.has(page.parent_id) && !ids.has(page.id)) {
+        ids.add(page.id)
+        added = true
+      }
+    }
+  }
+  return ids
+}
+
+async function moveTargets(query: string): Promise<SwitcherItem[]> {
+  const pages = await getPages()
+  const excluded = pageAndDescendants(pages, movingPageId!)
+  const lowerQuery = query.toLowerCase()
+
+  const targets = pages
+    .filter(p => !excluded.has(p.id) && p.title.toLowerCase().includes(lowerQuery))
+    .map(p => ({ id: p.id, title: p.title, snippet: null }))
+
+  if (query) return targets
+  return [{ id: TOP_LEVEL_ID, title: 'Top level', snippet: null }, ...targets]
 }
 
 async function updateResults(query: string): Promise<void> {
@@ -54,7 +95,9 @@ async function updateResults(query: string): Promise<void> {
   let next: SwitcherItem[]
 
   try {
-    if (query) {
+    if (movingPageId !== null) {
+      next = await moveTargets(query)
+    } else if (query) {
       const results = await searchPages(query)
       next = results.slice(0, RESULT_LIMIT)
     } else {
@@ -93,12 +136,14 @@ function renderResults(query: string): void {
     title.className = 'search-result-title'
     title.textContent = item.title
 
-    const path = document.createElement('div')
-    path.className = 'search-result-path'
-    path.textContent = getPagePath(item.id) || item.title
-
     row.appendChild(title)
-    row.appendChild(path)
+
+    if (item.id !== TOP_LEVEL_ID) {
+      const path = document.createElement('div')
+      path.className = 'search-result-path'
+      path.textContent = getPagePath(item.id) || item.title
+      row.appendChild(path)
+    }
 
     if (item.snippet) {
       const snippet = document.createElement('div')
@@ -132,6 +177,14 @@ export function initQuickSwitcher(onPageSelect: PageSelectCallback): void {
   const choose = (index: number) => {
     const item = items[index]
     if (!item) return
+
+    if (onMoveChosen) {
+      const moveCallback = onMoveChosen
+      closeSwitcher()
+      moveCallback(item.id === TOP_LEVEL_ID ? null : item.id)
+      return
+    }
+
     closeSwitcher()
     onPageSelect(item.id)
   }

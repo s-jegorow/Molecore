@@ -15,6 +15,13 @@ function isIos(): boolean {
   return /iPhone|iPad|iPod/.test(userAgent) || isIpadOs
 }
 
+export function registerServiceWorker(): void {
+  if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return
+  navigator.serviceWorker.register('/sw.js').catch(error => {
+    console.error('Service worker registration failed:', error)
+  })
+}
+
 export function initInstallApp(): void {
   const group = document.getElementById('install-app-group')
   const hint = document.getElementById('install-app-hint')

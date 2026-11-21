@@ -113,9 +113,10 @@ export async function loadPage(pageId: number) {
     }
     if (seq !== loadSeq) return
 
-    const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
+    const pageTitleInput = document.getElementById('page-title') as HTMLTextAreaElement
     if (pageTitleInput) {
       pageTitleInput.value = page.title
+      resizeTitle(pageTitleInput)
       setTitleColor(pageTitleInput, parseTitleColor((page.content as any)?.title_color))
     }
 
@@ -140,6 +141,9 @@ export async function loadPage(pageId: number) {
 
   } catch (error) {
     console.error('Failed to load page:', error)
+    if (appState.isOffline) {
+      await Modal.error('This page is not available offline yet. Open it once while online.')
+    }
   }
 }
 
@@ -196,7 +200,7 @@ function clearSaveTimer(): void {
 async function currentSnapshot(): Promise<string> {
   if (!appState.editor) return ''
   const content = await appState.editor.save()
-  const titleInput = document.getElementById('page-title') as HTMLInputElement | null
+  const titleInput = document.getElementById('page-title') as HTMLTextAreaElement | null
   return JSON.stringify({
     blocks: content.blocks,
     title: titleInput?.value || 'Untitled',
@@ -209,7 +213,7 @@ async function saveNow(pageId: number, keepalive: boolean): Promise<void> {
     const editor = appState.editor!
     await editor.isReady
     const content = await editor.save()
-    const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
+    const pageTitleInput = document.getElementById('page-title') as HTMLTextAreaElement
     const title = pageTitleInput?.value || 'Untitled'
     const titleColor = pageTitleInput?.dataset.titleColor || ''
     if (titleColor) (content as any).title_color = titleColor
@@ -289,9 +293,29 @@ export function setupHeaderUpload(): void {
   })
 }
 
+function resizeTitle(titleInput: HTMLTextAreaElement): void {
+  titleInput.style.height = 'auto'
+  titleInput.style.height = `${titleInput.scrollHeight}px`
+}
+
 export function setupPageTitleHandler(): void {
-  const pageTitleInput = document.getElementById('page-title') as HTMLInputElement
-  pageTitleInput?.addEventListener('blur', async () => {
+  const pageTitleInput = document.getElementById('page-title') as HTMLTextAreaElement
+  if (!pageTitleInput) return
+
+  pageTitleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault()
+  })
+
+  pageTitleInput.addEventListener('input', () => {
+    if (pageTitleInput.value.includes('\n')) {
+      pageTitleInput.value = pageTitleInput.value.replace(/\n/g, ' ')
+    }
+    resizeTitle(pageTitleInput)
+  })
+
+  window.addEventListener('resize', () => resizeTitle(pageTitleInput))
+
+  pageTitleInput.addEventListener('blur', async () => {
     if (!appState.currentPageId) return
 
     const newTitle = pageTitleInput.value || 'Untitled'
@@ -471,7 +495,7 @@ function parseTitleColor(raw: unknown): string {
   return '#' + m.slice(1, 4).map(n => Math.min(255, parseInt(n, 10)).toString(16).padStart(2, '0')).join('')
 }
 
-function setTitleColor(titleInput: HTMLInputElement, color: string): void {
+function setTitleColor(titleInput: HTMLTextAreaElement, color: string): void {
   titleInput.dataset.titleColor = color
   titleInput.style.color = color
   applyTitleColorIndicator(color)
@@ -479,7 +503,7 @@ function setTitleColor(titleInput: HTMLInputElement, color: string): void {
 
 function setupTitleColorPicker(): void {
   const btn = document.getElementById('title-color-btn')
-  const titleInput = document.getElementById('page-title') as HTMLInputElement
+  const titleInput = document.getElementById('page-title') as HTMLTextAreaElement
   if (!btn || !titleInput) return
 
   btn.addEventListener('click', (e) => {

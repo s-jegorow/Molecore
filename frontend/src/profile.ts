@@ -97,12 +97,24 @@ export function initProfileModal(): void {
     })
   }
 
-  getPreferences().then(prefs => applyHeaderSize(prefs.header_size ?? 'm'))
+  getPreferences().then(prefs => {
+    applyHeaderSize(prefs.header_size ?? 'm')
+    applyPageWidth(prefs.page_width ?? 'l')
+  })
+
   document.querySelectorAll<HTMLElement>('[data-header-size]').forEach(chip => {
     chip.addEventListener('click', async () => {
       const size = chip.dataset.headerSize!
       applyHeaderSize(size)
       await updatePreferences({ header_size: size })
+    })
+  })
+
+  document.querySelectorAll<HTMLElement>('[data-page-width]').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const width = chip.dataset.pageWidth!
+      applyPageWidth(width)
+      await updatePreferences({ page_width: width })
     })
   })
 }
@@ -112,6 +124,14 @@ function applyHeaderSize(size: string): void {
   if (size !== 'm') document.body.classList.add(`header-${size}`)
   document.querySelectorAll<HTMLElement>('[data-header-size]').forEach(chip => {
     chip.classList.toggle('active', chip.dataset.headerSize === size)
+  })
+}
+
+function applyPageWidth(width: string): void {
+  document.body.classList.remove('width-s', 'width-m')
+  if (width !== 'l') document.body.classList.add(`width-${width}`)
+  document.querySelectorAll<HTMLElement>('[data-page-width]').forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.pageWidth === width)
   })
 }
 

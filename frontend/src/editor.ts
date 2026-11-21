@@ -1,7 +1,7 @@
 import EditorJS from '@editorjs/editorjs'
 import Header from '@editorjs/header'
 import List from '@editorjs/list'
-import Code from '@editorjs/code'
+import CodeWithCopy from './CodeWithCopy'
 import Table from '@editorjs/table'
 import CustomToggleBlock from './CustomToggleBlock'
 import CalloutBlock, { initCalloutObserver } from './CalloutBlock'
@@ -59,7 +59,7 @@ export function initEditor(
         tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       code: {
-        class: Code as any,
+        class: CodeWithCopy as any,
         tunes: ['backgroundColor', 'wrapCallout', 'alignment']
       },
       table: {

@@ -12,7 +12,7 @@ import { initTodo } from './todo'
 import { initCalendar } from './calendar'
 import { Modal } from './Modal'
 import { login } from './auth'
-import { initInstallApp } from './pwa'
+import { initInstallApp, registerServiceWorker } from './pwa'
 import { initQuickSwitcher } from './quickSwitcher'
 
 function updateUndoRedoButtons(): void {
@@ -78,6 +78,13 @@ function setupSessionExpiredHandler(): void {
 
 async function init(): Promise<void> {
   initInstallApp()
+  registerServiceWorker()
+
+  // keycloak redirect dies offline, so skip it and let the sw serve the cache
+  if (!navigator.onLine) {
+    await startOffline()
+    return
+  }
 
   const authenticated = await initKeycloak()
   updateAuthUI(authenticated)
@@ -91,6 +98,18 @@ async function init(): Promise<void> {
     appState.isDemo = true
     document.body.classList.add('demo-mode')
   }
+
+  await startApp()
+}
+
+async function startOffline(): Promise<void> {
+  appState.isOffline = true
+  document.body.classList.add('offline')
+  updateAuthUI(true)
+  initAuthUI()
+  initDarkMode()
+
+  window.addEventListener('online', () => window.location.reload())
 
   await startApp()
 }

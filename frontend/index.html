@@ -53,7 +53,7 @@
 
       <div id="app-content">
         <header>
-          <input type="text" id="page-title" value="Untitled" placeholder="Untitled">
+          <textarea id="page-title" rows="1" placeholder="Untitled">Untitled</textarea>
           <button id="title-color-btn" title="Title color">
             <span class="title-color-a">A</span>
             <span id="title-color-indicator"></span>
@@ -62,6 +62,7 @@
 
         <div id="toolbar">
           <div id="breadcrumbs"></div>
+          <span id="offline-badge">Offline</span>
           <span id="sync-indicator" class="sync-indicator sync-idle" title="Not yet saved"></span>
           <button id="delete-btn" title="Delete page">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -157,6 +158,15 @@
               <div class="settings-chip" data-header-size="s">S</div>
               <div class="settings-chip" data-header-size="m">M</div>
               <div class="settings-chip" data-header-size="l">L</div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <p class="settings-group-label">Page width</p>
+            <div class="settings-chip-grid">
+              <div class="settings-chip" data-page-width="s">S</div>
+              <div class="settings-chip" data-page-width="m">M</div>
+              <div class="settings-chip" data-page-width="l">L</div>
             </div>
           </div>
 

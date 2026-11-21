@@ -3,18 +3,15 @@ import { appState } from './state'
 import type { PageMeta, PageSelectCallback, SearchResult } from './types'
 import { showIconPicker } from './iconPicker'
 import { isImageIcon } from './utils'
+import { openMovePicker } from './quickSwitcher'
+import { Modal } from './Modal'
 
 let activePageId: number | null = null
 let allPages: PageMeta[] = []
 let dashboardEnabled = true
-let pendingNavigation: number | null = null
-
-function cancelPendingNavigation(): void {
-  if (pendingNavigation !== null) {
-    clearTimeout(pendingNavigation)
-    pendingNavigation = null
-  }
-}
+let contextMenu: HTMLElement | null = null
+let longPressTimer: number | null = null
+let suppressNextClick = false
 
 const EXPANDED_KEY = 'expandedPages'
 const expandedPages: Set<number> = loadExpanded()
@@ -58,6 +55,21 @@ export function initPageList(onPageSelect: PageSelectCallback) {
   mobileOverlay.addEventListener('click', (e) => {
     if (e.target === mobileOverlay) {
       closeMobileMenu()
+    }
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return
+    if (contextMenu) {
+      closeContextMenu()
+    } else if (mobileOverlay.classList.contains('active')) {
+      closeMobileMenu()
+    }
+  })
+
+  document.addEventListener('pointerdown', (e) => {
+    if (contextMenu && !contextMenu.contains(e.target as Node)) {
+      closeContextMenu()
     }
   })
 
@@ -109,7 +121,34 @@ export function initPageList(onPageSelect: PageSelectCallback) {
   ]
 
   lists.forEach(list => {
+    list?.addEventListener('contextmenu', (e) => {
+      const pageItem = (e.target as HTMLElement).closest('.page-item') as HTMLElement | null
+      if (!pageItem || pageItem.dataset.editable !== 'true') return
+      e.preventDefault()
+      openContextMenu(Number(pageItem.dataset.pageId), e.clientX, e.clientY)
+    })
+
+    list?.addEventListener('touchstart', (e) => {
+      const pageItem = (e.target as HTMLElement).closest('.page-item') as HTMLElement | null
+      if (!pageItem || pageItem.dataset.editable !== 'true') return
+      const touch = e.touches[0]
+      cancelLongPress()
+      longPressTimer = window.setTimeout(() => {
+        suppressNextClick = true
+        openContextMenu(Number(pageItem.dataset.pageId), touch.clientX, touch.clientY)
+      }, 500)
+    }, { passive: true })
+
+    list?.addEventListener('touchmove', cancelLongPress, { passive: true })
+    list?.addEventListener('touchend', cancelLongPress)
+    list?.addEventListener('touchcancel', cancelLongPress)
+
     list?.addEventListener('click', (e) => {
+      if (suppressNextClick) {
+        suppressNextClick = false
+        return
+      }
+
       const target = e.target as HTMLElement
       const pageItem = target.closest('.page-item') as HTMLElement | null
       if (!pageItem) return
@@ -122,23 +161,13 @@ export function initPageList(onPageSelect: PageSelectCallback) {
         return
       }
 
-      if (target.closest('.page-icon') || target.closest('.page-item-edit')) {
+      if (target.closest('.page-icon')) {
         return
       }
 
-      const navigate = () => {
-        pendingNavigation = null
-        closeMobileMenu()
-        onPageSelect(pageId)
-        setActivePage(pageId)
-      }
-
-      cancelPendingNavigation()
-      if (target.closest('.page-title') && pageItem.dataset.editable === 'true') {
-        pendingNavigation = window.setTimeout(navigate, 250)
-      } else {
-        navigate()
-      }
+      closeMobileMenu()
+      onPageSelect(pageId)
+      setActivePage(pageId)
     })
   })
 
@@ -278,6 +307,8 @@ function renderSidebar(): void {
     roots.push(...(childrenMap.get(homePage.id) || []))
   }
 
+  const mobileFavoritesSection = document.getElementById('mobile-favorites-section')
+
   if (mobileFavoritesList) {
     mobileFavoritesList.innerHTML = ''
 
@@ -288,6 +319,10 @@ function renderSidebar(): void {
     allPages
       .filter(page => page.is_favorite)
       .forEach(page => mobileFavoritesList.appendChild(createPageNode(page, 0, childrenMap)))
+
+    if (mobileFavoritesSection) {
+      mobileFavoritesSection.style.display = mobileFavoritesList.children.length === 0 ? 'none' : ''
+    }
   }
 
   mobilePagesList.innerHTML = ''
@@ -331,7 +366,6 @@ function createPageItem(
   options: { label?: string; icon?: string; editable?: boolean }
 ): HTMLElement {
   const editable = options.editable !== false
-  let currentTitle = page.title
 
   const pageItem = document.createElement('div')
   pageItem.className = 'page-item'
@@ -378,66 +412,6 @@ function createPageItem(
     showIconPicker(page.id, iconEl, () => {
       loadPages()
     })
-  })
-
-  titleEl.addEventListener('dblclick', (e) => {
-    e.stopPropagation()
-    cancelPendingNavigation()
-    const input = document.createElement('input')
-    input.type = 'text'
-    input.value = currentTitle
-    input.className = 'page-item-edit'
-
-    input.style.cssText = `
-      flex: 1;
-      padding: 4px 8px;
-      border: 1px solid #007bff;
-      border-radius: 4px;
-      font-size: 14px;
-      font-family: inherit;
-      outline: none;
-      background: transparent;
-      color: var(--color-text-primary);
-    `
-
-    let cancelled = false
-
-    const saveTitle = async () => {
-      if (cancelled) return
-      const newTitle = input.value.trim() || 'Untitled'
-      titleEl.textContent = newTitle
-      if (newTitle === currentTitle) return
-      try {
-        await updatePage(page.id, { title: newTitle })
-        currentTitle = newTitle
-        page.title = newTitle
-
-        if (page.id === appState.currentPageId) {
-          const headerInput = document.getElementById('page-title') as HTMLInputElement
-          if (headerInput) {
-            headerInput.value = newTitle
-          }
-        }
-      } catch (error) {
-        console.error('Failed to update title:', error)
-        titleEl.textContent = currentTitle
-      }
-    }
-
-    input.addEventListener('blur', saveTitle)
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        input.blur()
-      } else if (e.key === 'Escape') {
-        cancelled = true
-        titleEl.textContent = currentTitle
-      }
-    })
-
-    titleEl.textContent = ''
-    titleEl.appendChild(input)
-    input.focus()
-    input.select()
   })
 
   return pageItem
@@ -521,11 +495,68 @@ async function runSearch(query: string, onPageSelect: PageSelectCallback) {
   })
 }
 
+function cancelLongPress() {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+function openContextMenu(pageId: number, x: number, y: number) {
+  if (appState.isDemo || appState.isOffline) return
+  closeContextMenu()
+
+  const menu = document.createElement('div')
+  menu.className = 'page-context-menu'
+
+  const moveBtn = document.createElement('button')
+  moveBtn.textContent = 'Move to...'
+  moveBtn.addEventListener('click', () => {
+    closeContextMenu()
+    openMovePicker(pageId, (parentId) => movePage(pageId, parentId))
+  })
+  menu.appendChild(moveBtn)
+
+  document.body.appendChild(menu)
+  menu.style.left = `${Math.min(x, window.innerWidth - menu.offsetWidth - 8)}px`
+  menu.style.top = `${Math.min(y, window.innerHeight - menu.offsetHeight - 8)}px`
+  contextMenu = menu
+}
+
+function closeContextMenu() {
+  contextMenu?.remove()
+  contextMenu = null
+}
+
+async function movePage(pageId: number, parentId: number | null) {
+  try {
+    await updatePage(pageId, { parent_id: parentId })
+    if (parentId !== null) {
+      expandedPages.add(parentId)
+      saveExpanded()
+    }
+    await loadPages()
+  } catch (error: any) {
+    console.error('Failed to move page:', error)
+    await Modal.error(error?.message || 'Failed to move page.')
+  }
+}
+
 function openMobileMenu() {
   const overlay = document.getElementById('mobile-overlay')
   if (overlay) {
     overlay.classList.add('active')
   }
+  scrollToActivePage()
+}
+
+function scrollToActivePage() {
+  const content = document.querySelector('.mobile-panel-content') as HTMLElement | null
+  const activeItem = content?.querySelector('.page-item.active')
+  if (!content || !activeItem) return
+
+  const offset = activeItem.getBoundingClientRect().top - content.getBoundingClientRect().top
+  content.scrollTop += offset - content.clientHeight / 2
 }
 
 function closeMobileMenu() {
@@ -537,7 +568,7 @@ function closeMobileMenu() {
 
 export function initReadMode() {
   const readModeBtn = document.getElementById('readmode-btn')
-  let isReadMode = localStorage.getItem('readMode') === 'true'
+  let isReadMode = appState.isOffline || localStorage.getItem('readMode') === 'true'
 
   async function applyReadMode() {
     document.body.classList.toggle('read-mode', isReadMode)
@@ -557,6 +588,7 @@ export function initReadMode() {
   }
 
   function toggleReadMode() {
+    if (appState.isOffline) return
     isReadMode = !isReadMode
     localStorage.setItem('readMode', String(isReadMode))
     applyReadMode()
